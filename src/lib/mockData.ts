@@ -436,11 +436,12 @@ let isSyncInitialized = false;
 
 export function initSupabaseSync() {
   if (typeof window === "undefined" || !supabase || isSyncInitialized) return;
+  const client = supabase;
   isSyncInitialized = true;
 
   // 1. Initial Pull - Tournaments
-  supabase.from("crickelite_tournaments").select("*").then(({ data }) => {
-    if (data) {
+  client.from("crickelite_tournaments").select("*").then(({ data }) => {
+    if (data && data.length > 0) {
       data.forEach(row => {
         const t = row.data as MockTournament;
         const owner = t.organizer === "DDUGroundCricket" ? "DDUGroundCricket" : "CrickElite";
@@ -452,12 +453,24 @@ export function initSupabaseSync() {
         localStorage.setItem(`${owner}_tournaments`, JSON.stringify(list));
       });
       window.dispatchEvent(new Event("storage"));
+    } else {
+      ["CrickElite", "DDUGroundCricket"].forEach(owner => {
+        const stored = localStorage.getItem(`${owner}_tournaments`);
+        if (stored) {
+          const list: MockTournament[] = JSON.parse(stored);
+          list.forEach(t => {
+            client.from("crickelite_tournaments").upsert({ id: t.id, data: t, updated_at: new Date().toISOString() }).then(({ error }) => {
+              if (error) console.error("Error bootstrapping tournament:", error);
+            });
+          });
+        }
+      });
     }
   });
 
   // 2. Initial Pull - Teams
-  supabase.from("crickelite_teams").select("*").then(({ data }) => {
-    if (data) {
+  client.from("crickelite_teams").select("*").then(({ data }) => {
+    if (data && data.length > 0) {
       data.forEach(row => {
         const team = row.data as MockTeam;
         const owner = findTeamOwner(team.id);
@@ -468,12 +481,24 @@ export function initSupabaseSync() {
         localStorage.setItem(`${owner}_teams`, JSON.stringify(list));
       });
       window.dispatchEvent(new Event("storage"));
+    } else {
+      ["CrickElite", "DDUGroundCricket"].forEach(owner => {
+        const stored = localStorage.getItem(`${owner}_teams`);
+        if (stored) {
+          const list: MockTeam[] = JSON.parse(stored);
+          list.forEach(team => {
+            client.from("crickelite_teams").upsert({ id: team.id, data: team, updated_at: new Date().toISOString() }).then(({ error }) => {
+              if (error) console.error("Error bootstrapping team:", error);
+            });
+          });
+        }
+      });
     }
   });
 
   // 3. Initial Pull - Matches
-  supabase.from("crickelite_matches").select("*").then(({ data }) => {
-    if (data) {
+  client.from("crickelite_matches").select("*").then(({ data }) => {
+    if (data && data.length > 0) {
       data.forEach(row => {
         const m = row.data as MatchState;
         const owner = findMatchOwner(m.matchId);
@@ -484,11 +509,23 @@ export function initSupabaseSync() {
         localStorage.setItem(`${owner}_matches`, JSON.stringify(list));
       });
       window.dispatchEvent(new Event("storage"));
+    } else {
+      ["CrickElite", "DDUGroundCricket"].forEach(owner => {
+        const stored = localStorage.getItem(`${owner}_matches`);
+        if (stored) {
+          const list: MatchState[] = JSON.parse(stored);
+          list.forEach(m => {
+            client.from("crickelite_matches").upsert({ id: m.matchId, data: m, updated_at: new Date().toISOString() }).then(({ error }) => {
+              if (error) console.error("Error bootstrapping match:", error);
+            });
+          });
+        }
+      });
     }
   });
 
   // Realtime Subscriptions
-  supabase
+  client
     .channel("crickelite-changes")
     .on(
       "postgres_changes",
