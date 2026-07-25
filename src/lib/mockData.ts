@@ -1,4 +1,5 @@
 import { MatchState, InningsState, PlayerMatchStats, BallRecord, addBallToInnings } from "./scorerEngine";
+import { supabase } from "./supabaseClient";
 
 export interface MockPlayer {
   id: string;
@@ -52,6 +53,7 @@ export function getActiveUser(): string | null {
 // LocalStorage helpers to simulate database operations locally
 export function getTeams(): MockTeam[] {
   if (typeof window === "undefined") return [];
+  initSupabaseSync();
   const currentUser = getActiveUser();
   if (currentUser) {
     const stored = localStorage.getItem(`${currentUser}_teams`) || (currentUser === "CrickElite" ? localStorage.getItem("pranscric_teams") : null);
@@ -93,11 +95,13 @@ export function saveTeam(team: MockTeam) {
   }
   localStorage.removeItem("pranscric_teams");
   localStorage.setItem(`${targetUser}_teams`, JSON.stringify(current));
+  syncTeamToSupabase(team);
   window.dispatchEvent(new Event("storage")); // Trigger cross-tab sync
 }
 
 export function getMatches(): MatchState[] {
   if (typeof window === "undefined") return [];
+  initSupabaseSync();
   const currentUser = getActiveUser();
   if (currentUser) {
     const stored = localStorage.getItem(`${currentUser}_matches`) || (currentUser === "CrickElite" ? localStorage.getItem("pranscric_matches") : null);
@@ -139,11 +143,13 @@ export function saveMatch(match: MatchState) {
   }
   localStorage.removeItem("pranscric_matches");
   localStorage.setItem(`${targetUser}_matches`, JSON.stringify(current));
+  syncMatchToSupabase(match);
   window.dispatchEvent(new Event("storage")); // Trigger cross-tab sync
 }
 
 export function getTournaments(): MockTournament[] {
   if (typeof window === "undefined") return [];
+  initSupabaseSync();
   const currentUser = getActiveUser();
   if (currentUser) {
     const stored = localStorage.getItem(`${currentUser}_tournaments`) || (currentUser === "CrickElite" ? localStorage.getItem("pranscric_tournaments") : null);
@@ -185,6 +191,7 @@ export function saveTournament(tournament: MockTournament) {
   }
   localStorage.removeItem("pranscric_tournaments");
   localStorage.setItem(`${targetUser}_tournaments`, JSON.stringify(current));
+  syncTournamentToSupabase(tournament);
   window.dispatchEvent(new Event("storage")); // Trigger cross-tab sync
 }
 
@@ -420,6 +427,213 @@ export function deleteMatch(matchId: string) {
     }
   });
   localStorage.removeItem("pranscric_tournaments"); // clean legacy
+  deleteMatchFromSupabase(matchId);
 
   window.dispatchEvent(new Event("storage"));
+}
+
+let isSyncInitialized = false;
+
+export function initSupabaseSync() {
+  if (typeof window === "undefined" || !supabase || isSyncInitialized) return;
+  isSyncInitialized = true;
+
+  // 1. Initial Pull - Tournaments
+  supabase.from("crickelite_tournaments").select("*").then(({ data }) => {
+    if (data) {
+      data.forEach(row => {
+        const t = row.data as MockTournament;
+        const owner = t.organizer === "DDUGroundCricket" ? "DDUGroundCricket" : "CrickElite";
+        
+        const stored = localStorage.getItem(`${owner}_tournaments`);
+        const list: MockTournament[] = stored ? JSON.parse(stored) : [];
+        const idx = list.findIndex(item => item.id === t.id);
+        if (idx !== -1) list[idx] = t; else list.push(t);
+        localStorage.setItem(`${owner}_tournaments`, JSON.stringify(list));
+      });
+      window.dispatchEvent(new Event("storage"));
+    }
+  });
+
+  // 2. Initial Pull - Teams
+  supabase.from("crickelite_teams").select("*").then(({ data }) => {
+    if (data) {
+      data.forEach(row => {
+        const team = row.data as MockTeam;
+        const owner = findTeamOwner(team.id);
+        const stored = localStorage.getItem(`${owner}_teams`);
+        const list: MockTeam[] = stored ? JSON.parse(stored) : [];
+        const idx = list.findIndex(item => item.id === team.id);
+        if (idx !== -1) list[idx] = team; else list.push(team);
+        localStorage.setItem(`${owner}_teams`, JSON.stringify(list));
+      });
+      window.dispatchEvent(new Event("storage"));
+    }
+  });
+
+  // 3. Initial Pull - Matches
+  supabase.from("crickelite_matches").select("*").then(({ data }) => {
+    if (data) {
+      data.forEach(row => {
+        const m = row.data as MatchState;
+        const owner = findMatchOwner(m.matchId);
+        const stored = localStorage.getItem(`${owner}_matches`);
+        const list: MatchState[] = stored ? JSON.parse(stored) : [];
+        const idx = list.findIndex(item => item.matchId === m.matchId);
+        if (idx !== -1) list[idx] = m; else list.push(m);
+        localStorage.setItem(`${owner}_matches`, JSON.stringify(list));
+      });
+      window.dispatchEvent(new Event("storage"));
+    }
+  });
+
+  // Realtime Subscriptions
+  supabase
+    .channel("crickelite-changes")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "crickelite_matches" },
+      (payload) => {
+        if (payload.eventType === "DELETE") {
+          const oldId = payload.old.id;
+          ["CrickElite", "DDUGroundCricket"].forEach(user => {
+            const stored = localStorage.getItem(`${user}_matches`);
+            if (stored) {
+              const list: MatchState[] = JSON.parse(stored);
+              const filtered = list.filter(m => m.matchId !== oldId);
+              localStorage.setItem(`${user}_matches`, JSON.stringify(filtered));
+            }
+          });
+        } else {
+          const m = payload.new.data as MatchState;
+          const owner = findMatchOwner(m.matchId);
+          const stored = localStorage.getItem(`${owner}_matches`);
+          const list: MatchState[] = stored ? JSON.parse(stored) : [];
+          const idx = list.findIndex(item => item.matchId === m.matchId);
+          if (idx !== -1) list[idx] = m; else list.push(m);
+          localStorage.setItem(`${owner}_matches`, JSON.stringify(list));
+        }
+        window.dispatchEvent(new Event("storage"));
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "crickelite_teams" },
+      (payload) => {
+        if (payload.eventType === "DELETE") {
+          const oldId = payload.old.id;
+          ["CrickElite", "DDUGroundCricket"].forEach(user => {
+            const stored = localStorage.getItem(`${user}_teams`);
+            if (stored) {
+              const list: MockTeam[] = JSON.parse(stored);
+              const filtered = list.filter(t => t.id !== oldId);
+              localStorage.setItem(`${user}_teams`, JSON.stringify(filtered));
+            }
+          });
+        } else {
+          const team = payload.new.data as MockTeam;
+          const owner = findTeamOwner(team.id);
+          const stored = localStorage.getItem(`${owner}_teams`);
+          const list: MockTeam[] = stored ? JSON.parse(stored) : [];
+          const idx = list.findIndex(item => item.id === team.id);
+          if (idx !== -1) list[idx] = team; else list.push(team);
+          localStorage.setItem(`${owner}_teams`, JSON.stringify(list));
+        }
+        window.dispatchEvent(new Event("storage"));
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "crickelite_tournaments" },
+      (payload) => {
+        if (payload.eventType === "DELETE") {
+          const oldId = payload.old.id;
+          ["CrickElite", "DDUGroundCricket"].forEach(user => {
+            const stored = localStorage.getItem(`${user}_tournaments`);
+            if (stored) {
+              const list: MockTournament[] = JSON.parse(stored);
+              const filtered = list.filter(t => t.id !== oldId);
+              localStorage.setItem(`${user}_tournaments`, JSON.stringify(filtered));
+            }
+          });
+        } else {
+          const t = payload.new.data as MockTournament;
+          const owner = t.organizer === "DDUGroundCricket" ? "DDUGroundCricket" : "CrickElite";
+          const stored = localStorage.getItem(`${owner}_tournaments`);
+          const list: MockTournament[] = stored ? JSON.parse(stored) : [];
+          const idx = list.findIndex(item => item.id === t.id);
+          if (idx !== -1) list[idx] = t; else list.push(t);
+          localStorage.setItem(`${owner}_tournaments`, JSON.stringify(list));
+        }
+        window.dispatchEvent(new Event("storage"));
+      }
+    )
+    .subscribe();
+}
+
+function findTeamOwner(teamId: string): string {
+  for (const user of ["CrickElite", "DDUGroundCricket"]) {
+    const storedT = localStorage.getItem(`${user}_tournaments`);
+    if (storedT) {
+      const listT: MockTournament[] = JSON.parse(storedT);
+      if (listT.some(t => t.teams.includes(teamId))) {
+        return user;
+      }
+    }
+  }
+  return getActiveUser() || "CrickElite";
+}
+
+function findMatchOwner(matchId: string): string {
+  for (const user of ["CrickElite", "DDUGroundCricket"]) {
+    const storedT = localStorage.getItem(`${user}_tournaments`);
+    if (storedT) {
+      const listT: MockTournament[] = JSON.parse(storedT);
+      if (listT.some(t => t.fixtures.some(f => f.matchId === matchId))) {
+        return user;
+      }
+    }
+  }
+  return getActiveUser() || "CrickElite";
+}
+
+function syncMatchToSupabase(match: MatchState) {
+  if (!supabase) return;
+  supabase
+    .from("crickelite_matches")
+    .upsert({ id: match.matchId, data: match, updated_at: new Date().toISOString() })
+    .then(({ error }) => {
+      if (error) console.error("Error syncing match:", error);
+    });
+}
+
+function syncTeamToSupabase(team: MockTeam) {
+  if (!supabase) return;
+  supabase
+    .from("crickelite_teams")
+    .upsert({ id: team.id, data: team, updated_at: new Date().toISOString() })
+    .then(({ error }) => {
+      if (error) console.error("Error syncing team:", error);
+    });
+}
+
+function syncTournamentToSupabase(tournament: MockTournament) {
+  if (!supabase) return;
+  supabase
+    .from("crickelite_tournaments")
+    .upsert({ id: tournament.id, data: tournament, updated_at: new Date().toISOString() })
+    .then(({ error }) => {
+      if (error) console.error("Error syncing tournament:", error);
+    });
+}
+
+function deleteMatchFromSupabase(matchId: string) {
+  if (!supabase) return;
+  supabase
+    .from("crickelite_matches")
+    .delete()
+    .eq("id", matchId)
+    .then(({ error }) => {
+      if (error) console.error("Error deleting match:", error);
+    });
 }
