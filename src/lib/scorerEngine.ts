@@ -140,9 +140,13 @@ export function addBallToInnings(
   // Handle extras calculation
   if (extraType === "wide") {
     ballIsLegal = false;
-    extraRunsAdded = 1 + runsBatter; // Wide run + any runs run by batters
+    extraRunsAdded = 1; // Wide penalty is 1 extra run
+    runsAdded = runsBatter; // Batter gets runs run from wide ball
     newState.extras.wides += extraRunsAdded;
-    newState.bowlingStats[bowlerId].runsConceded += extraRunsAdded;
+    newState.battingStats[batterId].runs += runsAdded;
+    if (runsAdded === 4) newState.battingStats[batterId].fours += 1;
+    if (runsAdded === 6) newState.battingStats[batterId].sixes += 1;
+    newState.bowlingStats[bowlerId].runsConceded += (runsAdded + extraRunsAdded);
   } else if (extraType === "noball") {
     ballIsLegal = false;
     extraRunsAdded = 1; 
@@ -188,11 +192,13 @@ export function addBallToInnings(
   // Wicket logic
   let dismissedPlayerName = "";
   if (wicketType) {
-    newState.wickets += 1;
+    if (wicketType !== "retired_hurt") {
+      newState.wickets += 1;
+    }
     const victimId = dismissedPlayerId || (wicketType === "runout" ? newState.currentBatter1Id : newState.currentBatter1Id); // Default to striker unless runout specified
 
     if (newState.battingStats[victimId]) {
-      newState.battingStats[victimId].isOut = true;
+      newState.battingStats[victimId].isOut = wicketType !== "retired_hurt";
       newState.battingStats[victimId].dismissalType = wicketType;
       dismissedPlayerName = newState.battingStats[victimId].name;
     }

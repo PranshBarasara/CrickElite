@@ -225,8 +225,8 @@ export default function ScorerPage() {
   };
 
   const currentInnings = match.currentInningsNumber === 1 ? match.firstInnings : match.secondInnings;
+  const isFreeHit = currentInnings && currentInnings.balls.length > 0 && currentInnings.balls[currentInnings.balls.length - 1].extraType === "noball";
 
-  // Render Toss Configuration Form if not configured
   if (!match.isTossCompleted || !currentInnings) {
     return (
       <div className="relative min-h-screen flex flex-col font-inter text-white">
@@ -650,7 +650,11 @@ export default function ScorerPage() {
       updated.currentBatter2Id = playerId;
     }
 
-    if (!updated.battingStats[playerId]) {
+    if (updated.battingStats[playerId]) {
+      // Clear retired hurt status since they are returning to bat
+      updated.battingStats[playerId].isOut = false;
+      delete updated.battingStats[playerId].dismissalType;
+    } else {
       const pObj = battingTeam?.players.find(p => p.id === playerId);
       updated.battingStats[playerId] = {
         id: playerId,
@@ -981,11 +985,15 @@ export default function ScorerPage() {
               </div>
 
               {/* 3. Wicket, Strike rotation, Custom Penalty */}
-              <div className="glass p-6 rounded-[22px] border border-white/5 flex flex-wrap gap-4 items-center">
-                <button
+              <div className="glass p-6 rounded-[22px] border border-white/5 flex flex-wrap gap-4 items-center">                <button
                   onClick={() => {
                     playClickSound(330, "sawtooth");
                     setDismissedPlayerId(currentInnings.currentBatter1Id);
+                    if (isFreeHit) {
+                      setWicketType("runout");
+                    } else {
+                      setWicketType("bowled");
+                    }
                     setShowWicketModal(true);
                   }}
                   className="flex-1 min-w-[150px] h-14 rounded-2xl bg-red-500/10 border border-red-500/25 hover:bg-red-500/20 text-red-400 font-space font-bold uppercase tracking-wider text-xs flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
@@ -1136,8 +1144,15 @@ export default function ScorerPage() {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
               className="glass max-w-sm w-full p-6 rounded-3xl border border-white/10 shadow-2xl relative"
-            >
-              <h3 className="font-space text-lg font-bold text-red-400 mb-4">Log Out Dismissal</h3>
+             >
+              <h3 className="font-space text-lg font-bold text-red-400 mb-2">Record Dismissal</h3>
+              
+              {isFreeHit && (
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 mb-4 text-yellow-300 text-xs font-semibold flex items-center gap-2">
+                  <span className="animate-pulse w-2 h-2 rounded-full bg-yellow-400"></span>
+                  Free Hit! Only Run Out & Retired Hurt are allowed.
+                </div>
+              )}
 
               <form onSubmit={handleWicketSubmit} className="space-y-4">
                 <div>
@@ -1147,7 +1162,7 @@ export default function ScorerPage() {
                   <select
                     value={dismissedPlayerId}
                     onChange={(e) => setDismissedPlayerId(e.target.value)}
-                    className="w-full bg-secondary text-sm border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-red-400 cursor-pointer"
+                    className="w-full bg-secondary text-sm border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-red-400 cursor-pointer text-white"
                   >
                     {currentStriker && <option value={currentStriker.id}>{currentStriker.name} (Striker)</option>}
                     {currentNonStriker && <option value={currentNonStriker.id}>{currentNonStriker.name} (Non-Striker)</option>}
@@ -1160,15 +1175,15 @@ export default function ScorerPage() {
                   </label>
                   <select
                     value={wicketType}
-                    onChange={(e) => setWicketType(e.target.value)}
-                    className="w-full bg-secondary text-sm border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-red-400 cursor-pointer"
+                    onChange={(e) => setWicketType(e.target.value as any)}
+                    className="w-full bg-secondary text-sm border border-white/10 rounded-xl px-3 py-2.5 outline-none focus:border-red-400 cursor-pointer text-white"
                   >
-                    <option value="bowled">Bowled</option>
-                    <option value="caught">Caught</option>
-                    <option value="lbw">LBW</option>
-                    <option value="stumped">Stumped</option>
+                    <option value="bowled" disabled={isFreeHit}>Bowled {isFreeHit && "(Disabled - Free Hit)"}</option>
+                    <option value="caught" disabled={isFreeHit}>Caught {isFreeHit && "(Disabled - Free Hit)"}</option>
+                    <option value="lbw" disabled={isFreeHit}>LBW {isFreeHit && "(Disabled - Free Hit)"}</option>
                     <option value="runout">Run Out</option>
-                    <option value="hitwicket">Hit Wicket</option>
+                    <option value="stumped" disabled={isFreeHit}>Stumped {isFreeHit && "(Disabled - Free Hit)"}</option>
+                    <option value="hitwicket" disabled={isFreeHit}>Hit Wicket {isFreeHit && "(Disabled - Free Hit)"}</option>
                     <option value="retired_hurt">Retired Hurt</option>
                   </select>
                 </div>
@@ -1177,7 +1192,7 @@ export default function ScorerPage() {
                   <button
                     type="button"
                     onClick={() => setShowWicketModal(false)}
-                    className="flex-1 bg-white/5 border border-white/10 rounded-full py-2.5 text-xs font-bold hover:bg-white/10"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-full py-2.5 text-xs font-bold hover:bg-white/10 text-white"
                   >
                     Cancel
                   </button>
@@ -1185,7 +1200,7 @@ export default function ScorerPage() {
                     type="submit"
                     className="flex-1 bg-red-500 text-white rounded-full py-2.5 text-xs font-bold hover:opacity-90"
                   >
-                    Confirm Out
+                    Confirm
                   </button>
                 </div>
               </form>
@@ -1248,6 +1263,10 @@ export default function ScorerPage() {
               <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                 {battingTeam?.players
                   .filter((player) => {
+                    const stats = currentInnings.battingStats[player.id];
+                    if (stats && stats.isOut) {
+                      return false;
+                    }
                     if (batterTarget === "batter1") {
                       return player.id !== currentInnings.currentBatter2Id;
                     } else if (batterTarget === "batter2") {

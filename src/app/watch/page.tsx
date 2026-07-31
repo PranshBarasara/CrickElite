@@ -373,17 +373,53 @@ export default function WatchPage() {
                 <h1 className="font-space text-2xl font-bold tracking-tight">
                   {match?.team1Name} vs {match?.team2Name}
                 </h1>
-                <span className="flex h-2.5 w-2.5 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                </span>
-                <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-400 font-bold bg-emerald-400/10 px-2 py-0.5 rounded-full">
-                  LIVE
-                </span>
+                {match?.status === "completed" ? (
+                  <span className="text-[10px] uppercase font-mono tracking-wider text-red-400 font-bold bg-red-400/10 px-2 py-0.5 rounded-full">
+                    COMPLETED
+                  </span>
+                ) : (
+                  <>
+                    <span className="flex h-2.5 w-2.5 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-[10px] uppercase font-mono tracking-wider text-emerald-400 font-bold bg-emerald-400/10 px-2 py-0.5 rounded-full">
+                      LIVE
+                    </span>
+                  </>
+                )}
               </div>
             </div>
 
           </div>
+
+          {match && match.status === "completed" && (
+            <div className="bg-gradient-to-r from-red-500/20 to-gold/20 border border-red-500/30 rounded-[22px] p-6 text-center space-y-3 relative overflow-hidden shadow-lg shadow-red-500/5">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-gold/10 rounded-full blur-2xl animate-pulse" />
+              <h2 className="font-space text-2xl font-black text-gold uppercase tracking-wider flex items-center justify-center gap-2">
+                🏆 Match Completed 🏆
+              </h2>
+              <p className="font-space text-lg font-bold text-white">
+                {match.winnerName === "Tie Match" ? (
+                  <span className="text-yellow-400 font-extrabold uppercase">Match ended in a TIE!</span>
+                ) : (
+                  <>
+                    Winner: <span className="text-gold font-extrabold uppercase">{match.winnerName}</span> 🎉
+                  </>
+                )}
+              </p>
+              <div className="flex justify-center gap-8 text-xs font-mono text-text-secondary">
+                <div>
+                  <span>{match.team1Name}:</span> <span className="text-white font-bold ml-1">{match.firstInnings.runs}/{match.firstInnings.wickets}</span> ({ballsToOvers(match.firstInnings.ballsBowled)} overs)
+                </div>
+                {match.secondInnings && (
+                  <div>
+                    <span>{match.team2Name}:</span> <span className="text-white font-bold ml-1">{match.secondInnings.runs}/{match.secondInnings.wickets}</span> ({ballsToOvers(match.secondInnings.ballsBowled)} overs)
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Toss & Match Category Details Banner */}
           {match && (

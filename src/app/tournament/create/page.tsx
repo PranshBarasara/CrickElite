@@ -95,6 +95,12 @@ export default function CreateTournamentPage() {
       const allTeams = getTeams();
       const filtered = allTeams.filter(t => activeTournament.teams.includes(t.id));
       setTournamentTeams(filtered);
+      if (!fixtureOvers) {
+        setFixtureOvers(activeTournament.overs.toString());
+      }
+      if (!fixtureWickets) {
+        setFixtureWickets("10");
+      }
     }
   }, [activeTournament]);
 
@@ -1118,8 +1124,17 @@ export default function CreateTournamentPage() {
                       <select
                         required
                         value={fixtureTeam1Id}
-                        onChange={(e) => setFixtureTeam1Id(e.target.value)}
-                        className="w-full bg-secondary text-xs border border-white/10 rounded-xl px-3 py-2 outline-none cursor-pointer"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFixtureTeam1Id(val);
+                          const team = tournamentTeams.find(t => t.id === val);
+                          if (team && team.players.length > 0) {
+                            setFixtureTeam1CaptainId(team.players[0].id);
+                          } else {
+                            setFixtureTeam1CaptainId("");
+                          }
+                        }}
+                        className="w-full bg-secondary text-xs border border-white/10 rounded-xl px-3 py-2 outline-none cursor-pointer text-white"
                       >
                         <option value="">Select Team 1</option>
                         {tournamentTeams.filter(t => t.players.length > 1 && t.id !== fixtureTeam2Id).map(t => (
@@ -1135,8 +1150,17 @@ export default function CreateTournamentPage() {
                       <select
                         required
                         value={fixtureTeam2Id}
-                        onChange={(e) => setFixtureTeam2Id(e.target.value)}
-                        className="w-full bg-secondary text-xs border border-white/10 rounded-xl px-3 py-2 outline-none cursor-pointer"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFixtureTeam2Id(val);
+                          const team = tournamentTeams.find(t => t.id === val);
+                          if (team && team.players.length > 0) {
+                            setFixtureTeam2CaptainId(team.players[0].id);
+                          } else {
+                            setFixtureTeam2CaptainId("");
+                          }
+                        }}
+                        className="w-full bg-secondary text-xs border border-white/10 rounded-xl px-3 py-2 outline-none cursor-pointer text-white"
                       >
                         <option value="">Select Team 2</option>
                         {tournamentTeams.filter(t => t.players.length > 1 && t.id !== fixtureTeam1Id).map(t => (
@@ -1196,6 +1220,7 @@ export default function CreateTournamentPage() {
                         </label>
                         <input
                           type="number"
+                          required
                           placeholder={`${activeTournament?.overs || 20} (Default)`}
                           value={fixtureOvers}
                           onChange={(e) => setFixtureOvers(e.target.value)}
@@ -1208,6 +1233,7 @@ export default function CreateTournamentPage() {
                         </label>
                         <input
                           type="number"
+                          required
                           placeholder="e.g. 10 (Default)"
                           value={fixtureWickets}
                           onChange={(e) => setFixtureWickets(e.target.value)}
@@ -1222,6 +1248,7 @@ export default function CreateTournamentPage() {
                           Team 1 Captain ({tournamentTeams.find(t => t.id === fixtureTeam1Id)?.name})
                         </label>
                         <select
+                          required
                           value={fixtureTeam1CaptainId}
                           onChange={(e) => setFixtureTeam1CaptainId(e.target.value)}
                           className="w-full bg-secondary text-xs border border-white/10 rounded-xl px-3 py-2 outline-none cursor-pointer text-white"
@@ -1240,6 +1267,7 @@ export default function CreateTournamentPage() {
                           Team 2 Captain ({tournamentTeams.find(t => t.id === fixtureTeam2Id)?.name})
                         </label>
                         <select
+                          required
                           value={fixtureTeam2CaptainId}
                           onChange={(e) => setFixtureTeam2CaptainId(e.target.value)}
                           className="w-full bg-secondary text-xs border border-white/10 rounded-xl px-3 py-2 outline-none cursor-pointer text-white"
@@ -1269,10 +1297,10 @@ export default function CreateTournamentPage() {
                   </h3>
 
                   <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                    {!activeTournament || activeTournament.fixtures.length === 0 ? (
+                    {!activeTournament || activeTournament.fixtures.filter(f => f.status !== "completed").length === 0 ? (
                       <p className="text-xs text-text-secondary italic">No fixtures scheduled.</p>
                     ) : (
-                      activeTournament.fixtures.map((f, idx) => (
+                      activeTournament.fixtures.filter(f => f.status !== "completed").map((f, idx) => (
                         <div key={idx} className="bg-white/5 border border-white/5 p-4 rounded-2xl space-y-3">
                           <div className="flex justify-between items-center text-[9px] font-mono text-text-secondary">
                             <span>{f.round}</span>
