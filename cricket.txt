@@ -1,0 +1,132 @@
+================================================================================
+                           CRICKELITE ARCHITECTURE & FLOW MANUAL
+================================================================================
+
+This document outlines the complete system flow, functional specifications, and 
+technology mappings for the CrickElite Next.js real-time cricket scoring application.
+
+--------------------------------------------------------------------------------
+1. PROJECT TECHNOLOGY STACK
+--------------------------------------------------------------------------------
+
+* Framework: Next.js 16.2.10 (App Router, Turbopack enabled)
+* Languages: TypeScript (strict type verification), JavaScript, HTML5, CSS3
+* Database & Backend: Supabase JS Client (^2.110.7)
+  - Real-time websocket subscriptions (supabase.channel)
+  - Postgres change listeners to sync match states dynamically across all screens.
+* Local Cache & Off-line Fallback: HTML5 LocalStorage API with automatic cloud-sync
+  and Supabase bootstrapping data migration scripts.
+* Styling & Design System: TailwindCSS v4 with custom dark glassmorphism palettes.
+* Animation Engine: Framer Motion (^12.42.2) for modals, alerts, and live score popups.
+* Charts & Graphics: Recharts (^3.9.2) for dynamic win probability curves.
+* UI Vector Assets: Lucide React (^1.25.0) & React Icons (^5.7.0).
+* Sound Engine: HTML5 Web Audio API (native browser AudioContext oscillator synthesizer).
+* Sharing Utility: QRCode library (^1.5.4) for match link sharing.
+* Celebrations: Canvas Confetti (^1.9.4) triggered on match finish.
+
+--------------------------------------------------------------------------------
+2. DETAILED PROJECT FLOW & NAVIGATION
+--------------------------------------------------------------------------------
+
++------------------+     Click Watch      +-----------------------+
+|  Home Portal     | -------------------> |    Spectator Arena    |
+| (src/app/        |                      | (src/app/watch/       |
+|  page.tsx)       | <------------------- |  page.tsx)            |
++------------------+      Go Home         +-----------------------+
+        |
+        | Click Admin Login (Code: authorized_elite)
+        v
++-----------------------+  Score Match    +-----------------------+
+|  Tournament Manager   | --------------> |   Live Scorer Panel   |
+| (src/app/tournament/  |                 | (src/app/scorer/      |
+|  create/page.tsx)     | <-------------- |  page.tsx)            |
++-----------------------+  Back to Dash   +-----------------------+
+
+Flow Step-by-Step:
+1. Entry: Users land on the landing page (src/app/page.tsx). They can see active matches
+   and click "Watch" or enter the "Admin Dashboard".
+2. Authentication Gate: If a user enters "Admin Dashboard", a Framer-Motion animated modal
+   prompts for the security password ("authorized_elite"). Once verified, access is granted.
+3. Tournament Setup: In the dashboard, admins can:
+   - Create tournaments (stores to crickelite_tournaments).
+   - Create teams inside tournaments (stores to crickelite_teams).
+   - Add/manage players and roles (Batsman, Bowler, All-Rounder, Wicketkeeper).
+   - Schedule fixtures with details like date, category, overs, wickets limit, and captains.
+4. Scoring Arena: Admins launch a scheduled fixture inside the live scorer panel. Scoring
+   actions trigger Supabase real-time updates.
+5. Watch Broadcast: Spectators join by entering the tournament code, syncing with Supabase 
+   to view live ball-by-ball commentary, scorecard, and graph updates.
+
+--------------------------------------------------------------------------------
+3. FUNCTIONAL MAPPING BY TECHNOLOGY & FILES
+--------------------------------------------------------------------------------
+
+A. Real-Time Sync & Migration Adapter
+-------------------------------------
+* Target File: `src/lib/mockData.ts`, `src/lib/supabaseClient.ts`
+* Tech Used: Supabase API + LocalStorage
+* Functions:
+  - `saveMatch`, `saveTeam`, `saveTournament`: Persist state in localStorage and immediately
+    upload (upsert) to Supabase backend in the background.
+  - Bootstrapping: On app load, checks if Supabase tables are empty. If empty, it migrates
+    all local mock data to Supabase database. If not empty, it syncs cloud data down.
+
+B. Scoring Calculation & Engine
+-------------------------------
+* Target File: `src/lib/scorerEngine.ts`
+* Tech Used: Pure TypeScript functions & Cricket Math
+* Functions:
+  - `addBallToInnings`: Processes ball run additions, extra types, wickets, and commentary.
+  - `ballsToOvers`: Translates a legal ball count into standard cricket notation (e.g. 11 balls -> 1.5 overs).
+  - `calculateCRR` & `calculateRRR`: Computes Current Run Rate and Required Run Rate.
+
+D. Live Scorer Panel (Admin Dashboard)
+--------------------------------------
+* Target File: `src/app/scorer/page.tsx`
+* Tech Used: React, Framer Motion, HTML5 Web Audio API
+* Functions:
+  - `applyScoreEvent`: Logs regular runs or extras (Wide, No ball, Bye, Leg bye).
+  - `handleWicketSubmit`: Launches the dismissal modal. Allows specifying who was out 
+    (striker vs non-striker) and the wicket type.
+  - `playClickSound`: Synthesis sound effects on button click using custom Web Audio frequencies.
+  - `handleUndo`: Pops previous MatchState from the history array to revert mistakes.
+
+D. Spectator Watch Panel
+------------------------
+* Target File: `src/app/watch/page.tsx`
+* Tech Used: React, Supabase Channels, Recharts, Canvas Confetti, QRCode
+* Functions:
+  - Real-time Listeners: Subscribes to Supabase match updates using real-time channels
+    to refresh scores instantly without reloading.
+  - `getWinProbability`: Computes dynamic chasing/defending percentages.
+  - Win Charts: Displays a responsive line graph showing win percentages over time.
+  - `canvas-confetti`: Blows colorful confetti across the screen when match status is completed.
+
+E. Tournament fixture Scheduler
+-------------------------------
+* Target File: `src/app/tournament/create/page.tsx`
+* Tech Used: React, HTML Form Validation
+* Functions:
+  - Scheduler Form: Validates required inputs (Overs, Wicket limits, Captains, Teams).
+  - Auto-Captain Selector: Listens to team selections and automatically defaults captains
+    to the first player of each team.
+  - Completed Fixture filter: Filters out completed games so they only show in reports.
+
+--------------------------------------------------------------------------------
+4. CUSTOM RULES & LOGIC CONSTRAINTS
+--------------------------------------------------------------------------------
+
+* Wides & Additional Runs:
+  - Extra penalty is 1 run (charged to bowler and extras).
+  - Striker is credited with any ran runs (e.g., ran 4 runs off wide adds 4 runs to batter, 
+    5 to team, 0 balls faced).
+* Free Hit (No-Ball):
+  - On a Free Hit, batsmen cannot be out by Bowled, Caught, LBW, Stumped, or Hit Wicket.
+  - Those options are disabled in the Wicket Modal, leaving only Run Out and Retired Hurt.
+* Retired Hurt Wickets:
+  - "Retired Hurt" is logged to clear active batsman slots, but the team's total wicket count 
+    does not increase.
+* Striker Roster Filter:
+  - Players whose status is set as "out" (`stats.isOut === true`) are hidden from striker selections.
+  - Retired hurt players remain visible as they are allowed to return to bat.
+================================================================================
