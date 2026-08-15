@@ -6,7 +6,7 @@ import { ArrowLeft, Check, Plus, Calendar, MapPin, Trophy, Shield, CalendarCheck
 import Link from "next/link";
 import Navigation from "@/components/Navigation";
 import StadiumBackground from "@/components/background/StadiumBackground";
-import { MockTournament, getTournaments, saveTournament, getTeams, saveTeam, getMatches, saveMatch, deleteMatch, getActiveUser, MockTeam, MockPlayer } from "@/lib/mockData";
+import { MockTournament, getTournaments, saveTournament, getTeams, saveTeam, getMatches, saveMatch, deleteMatch, getActiveUser, MockTeam, MockPlayer, deleteTournament } from "@/lib/mockData";
 import { MatchState } from "@/lib/scorerEngine";
 
 export default function CreateTournamentPage() {
@@ -82,8 +82,11 @@ export default function CreateTournamentPage() {
       // Look for any existing tournaments
       const existing = getTournaments();
       if (existing.length > 0) {
-        setActiveTournament(existing[existing.length - 1]);
-        setStep(3); // Go directly to manager panel
+        setStep(0); // Show selector portal
+        setActiveTournament(null);
+      } else {
+        setStep(1); // Go to creator wizard
+        setActiveTournament(null);
       }
     }
     setLoading(false);
@@ -548,16 +551,131 @@ export default function CreateTournamentPage() {
       <Navigation />
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
-        {step !== 3 ? (
+        {step === 0 ? (
+          // Tournament Selection Portal (Admin Home)
+          <div className="max-w-4xl mx-auto w-full pt-6 space-y-8 animate-fade-in">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <Link
+                  href="/"
+                  className="inline-flex items-center gap-2 text-xs text-text-secondary hover:text-white mb-2 transition-colors"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back to Home
+                </Link>
+                <h1 className="font-space text-3xl font-bold tracking-tight">Admin Tournament Console</h1>
+                <p className="text-xs text-text-secondary mt-1">
+                  Select one of your tournaments to manage matches, squads, and schedules, or create a brand new league.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setStep(1);
+                  setTournamentName("");
+                  setOrgName("");
+                  setLocation("");
+                  setGround("");
+                  setOvers(20);
+                  setTeamsLimit(6);
+                  setRules("");
+                }}
+                className="bg-gradient-to-r from-gold to-yellow-600 text-black px-6 py-2.5 rounded-full text-xs font-bold font-space uppercase tracking-wider flex items-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-gold/10 cursor-pointer"
+              >
+                <Plus className="h-4 w-4 stroke-[3]" /> Create Tournament
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {getTournaments().map((t) => {
+                const liveCount = t.fixtures.filter(f => f.status === "live").length;
+                const completedCount = t.fixtures.filter(f => f.status === "completed").length;
+                const scheduledCount = t.fixtures.filter(f => f.status === "scheduled").length;
+
+                return (
+                  <div
+                    key={t.id}
+                    className="p-6 rounded-[22px] border border-white/5 bg-white/[0.02] flex flex-col justify-between min-h-56 relative overflow-hidden group shadow-lg"
+                  >
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-gold/[0.01] rounded-full blur-2xl group-hover:bg-gold/[0.04] transition-colors" />
+                    
+                    <div>
+                      <div className="flex justify-between items-start gap-2 mb-3">
+                        <h3 className="font-space font-extrabold text-lg text-white tracking-wide group-hover:text-gold transition-colors font-bold">
+                          {t.name}
+                        </h3>
+                        {liveCount > 0 && (
+                          <span className="flex-shrink-0 flex items-center gap-1 bg-red-500/20 border border-red-500/30 px-2 py-0.5 rounded text-[8px] font-bold text-red-400 animate-pulse font-mono uppercase">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> Live
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5 text-[11px] text-text-secondary font-mono">
+                        <p className="flex items-center gap-2">
+                          <Users className="h-3.5 w-3.5" /> Org: {t.organizer}
+                        </p>
+                        <p className="flex items-center gap-2">
+                          <MapPin className="h-3.5 w-3.5" /> Ground: {t.ground}
+                        </p>
+                        <div className="mt-3 flex items-center gap-2 bg-white/5 border border-white/5 p-2 rounded-xl text-[9px] tracking-wide">
+                          <div className="flex-1">
+                            <span className="text-white/50 block text-[8px] uppercase">Access Code:</span>
+                            <span className="text-gold font-bold">{t.code}</span>
+                          </div>
+                          <div className="flex-1">
+                            <span className="text-white/50 block text-[8px] uppercase">Security PIN:</span>
+                            <span className="text-white font-bold">{t.passwordHash}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 border-t border-white/5 pt-3.5 flex gap-3 items-center">
+                      <button
+                        onClick={() => {
+                          setActiveTournament(t);
+                          setStep(3);
+                        }}
+                        className="flex-1 bg-gradient-to-r from-gold to-yellow-600 text-black py-2 rounded-full text-[10px] font-bold font-space uppercase tracking-wider text-center hover:opacity-90 transition-opacity cursor-pointer"
+                      >
+                        Manage Dashboard
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Are you sure you want to delete the tournament "${t.name}" and all its scheduled/completed match scores? This cannot be undone.`)) {
+                            deleteTournament(t.id);
+                            setStep(0); 
+                          }
+                        }}
+                        className="p-2 border border-white/10 hover:border-red-500/30 hover:bg-red-500/10 text-text-secondary hover:text-red-400 rounded-full transition-colors cursor-pointer"
+                        title="Delete Tournament"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : step !== 3 ? (
           // Tournament Wizard form
           <div className="max-w-2xl mx-auto w-full pt-6">
             <div className="mb-6">
-              <Link
-                href="/"
-                className="inline-flex items-center gap-2 text-xs text-text-secondary hover:text-white mb-2 transition-colors"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" /> Back to Home
-              </Link>
+              {getTournaments().length > 0 ? (
+                <button
+                  onClick={() => setStep(0)}
+                  className="inline-flex items-center gap-2 text-xs text-text-secondary hover:text-white mb-2 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back to Tournaments Console
+                </button>
+              ) : (
+                <Link
+                  href="/"
+                  className="inline-flex items-center gap-2 text-xs text-text-secondary hover:text-white mb-2 transition-colors"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back to Home
+                </Link>
+              )}
               <h1 className="font-space text-3xl font-bold tracking-tight">Create New Tournament</h1>
               <p className="text-xs text-text-secondary mt-1">
                 Configure your league overs, locations, and automatically generate pairings.
@@ -710,9 +828,20 @@ export default function CreateTournamentPage() {
             {/* Header summary widget */}
             <div className="glass rounded-[22px] border border-white/10 p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-2xl relative overflow-hidden bg-white/5">
               <div>
-                <span className="flex items-center gap-1.5 text-gold font-mono text-xs uppercase font-bold mb-2">
-                  <Trophy className="h-4 w-4" /> Active Tournament Organizer Dashboard
-                </span>
+                <div className="flex flex-wrap items-center gap-3 mb-2">
+                  <span className="flex items-center gap-1.5 text-gold font-mono text-xs uppercase font-bold">
+                    <Trophy className="h-4 w-4" /> Active Tournament Organizer Dashboard
+                  </span>
+                  <button
+                    onClick={() => {
+                      setActiveTournament(null);
+                      setStep(0);
+                    }}
+                    className="px-2 py-0.5 rounded border border-white/10 hover:border-gold/30 hover:bg-gold/10 text-[9px] uppercase font-mono text-text-secondary hover:text-gold transition-colors cursor-pointer"
+                  >
+                    Switch Tournament
+                  </button>
+                </div>
                 <h1 className="font-space text-3xl font-bold tracking-tight text-white">
                   {activeTournament?.name}
                 </h1>

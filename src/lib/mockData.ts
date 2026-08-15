@@ -674,3 +674,55 @@ function deleteMatchFromSupabase(matchId: string) {
       if (error) console.error("Error deleting match:", error);
     });
 }
+
+export function deleteTournament(tournamentId: string) {
+  if (typeof window === "undefined") return;
+  let targetUser = getActiveUser();
+  if (!targetUser) {
+    targetUser = ["CrickElite", "DDUGroundCricket"].find(user => {
+      const stored = localStorage.getItem(`${user}_tournaments`) || (user === "CrickElite" ? localStorage.getItem("pranscric_tournaments") : null);
+      if (stored) {
+        const arr: MockTournament[] = JSON.parse(stored);
+        return arr.some(t => t.id === tournamentId);
+      }
+      return false;
+    }) || "CrickElite";
+  }
+
+  const stored = localStorage.getItem(`${targetUser}_tournaments`) || (targetUser === "CrickElite" ? localStorage.getItem("pranscric_tournaments") : null);
+  const current: MockTournament[] = stored ? JSON.parse(stored) : [];
+  const updated = current.filter((t) => t.id !== tournamentId);
+  localStorage.setItem(`${targetUser}_tournaments`, JSON.stringify(updated));
+  localStorage.removeItem("pranscric_tournaments"); // clean legacy
+
+  // Delete matches belonging to this tournament from local storage
+  const tournamentObj = current.find(t => t.id === tournamentId);
+  if (tournamentObj) {
+    const matchIds = tournamentObj.fixtures.map(f => f.matchId);
+    const matchesStored = localStorage.getItem(`${targetUser}_matches`) || (targetUser === "CrickElite" ? localStorage.getItem("pranscric_matches") : null);
+    if (matchesStored) {
+      const matchesArr: MatchState[] = JSON.parse(matchesStored);
+      const filteredMatches = matchesArr.filter(m => !matchIds.includes(m.matchId));
+      localStorage.setItem(`${targetUser}_matches`, JSON.stringify(filteredMatches));
+      localStorage.removeItem("pranscric_matches"); // clean legacy
+      
+      // Delete matches from Supabase too
+      matchIds.forEach(mId => {
+        deleteMatchFromSupabase(mId);
+      });
+    }
+  }
+
+  // Delete tournament from Supabase
+  if (supabase) {
+    supabase
+      .from("crickelite_tournaments")
+      .delete()
+      .eq("id", tournamentId)
+      .then(({ error }) => {
+        if (error) console.error("Error deleting tournament:", error);
+      });
+  }
+
+  window.dispatchEvent(new Event("storage"));
+}

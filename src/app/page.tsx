@@ -3,16 +3,18 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Radio, Calendar, History, ArrowRight, Play, Trophy, Users, Shield, Plus, Trash2 } from "lucide-react";
+import { Radio, Calendar, History, ArrowRight, Play, Trophy, Users, Shield, Plus, Trash2, MapPin } from "lucide-react";
 import StadiumBackground from "@/components/background/StadiumBackground";
 import Navigation from "@/components/Navigation";
 import Loader from "@/components/loader/Loader";
-import { getMatches, getTournaments, deleteMatch } from "@/lib/mockData";
+import { getMatches, getTournaments, deleteMatch, MockTournament } from "@/lib/mockData";
 import { MatchState, ballsToOvers } from "@/lib/scorerEngine";
 
 export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [matches, setMatches] = useState<MatchState[]>([]);
+  const [tournaments, setTournaments] = useState<MockTournament[]>([]);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string>("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // Helper to get local date string YYYY-MM-DD
@@ -25,6 +27,11 @@ export default function HomePage() {
 
   const loadLocalData = () => {
     setMatches(getMatches());
+    const allTournaments = getTournaments();
+    setTournaments(allTournaments);
+    if (allTournaments.length > 0) {
+      setSelectedTournamentId((prev) => prev || allTournaments[0].id);
+    }
     const auth = localStorage.getItem("pranscric_auth_token");
     setIsLoggedIn(auth === "authorized_elite");
   };
@@ -47,10 +54,15 @@ export default function HomePage() {
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  // Filter matches by status
-  const liveMatches = matches.filter((m) => m.status === "live");
-  const upcomingMatches = matches.filter((m) => m.status === "scheduled");
-  const pastMatches = matches.filter((m) => m.status === "completed");
+  // Filter matches by selected tournament
+  const selectedTournament = tournaments.find((t) => t.id === selectedTournamentId);
+  const filteredMatches = selectedTournament
+    ? matches.filter((m) => selectedTournament.fixtures.some((f) => f.matchId === m.matchId))
+    : [];
+
+  const liveMatches = filteredMatches.filter((m) => m.status === "live");
+  const upcomingMatches = filteredMatches.filter((m) => m.status === "scheduled");
+  const pastMatches = filteredMatches.filter((m) => m.status === "completed");
 
   if (loading) {
     return <Loader onComplete={() => setLoading(false)} />;
@@ -103,8 +115,78 @@ export default function HomePage() {
           )}
         </div>
 
+        {/* TOURNAMENTS SELECTION PORTAL */}
+        <div className="w-full mb-12 border-t border-white/5 pt-12">
+          <h2 className="font-space text-lg font-bold tracking-wider uppercase text-white flex items-center gap-2 mb-6">
+            <Trophy className="h-5 w-5 text-gold" /> Available Tournaments
+          </h2>
+          
+          {tournaments.length === 0 ? (
+            <div className="glass p-10 rounded-[22px] border border-white/5 text-center text-sm text-text-secondary">
+              No tournaments are currently active or created. Click the button above to create one!
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {tournaments.map((t) => {
+                const isSelected = t.id === selectedTournamentId;
+                const liveCount = t.fixtures.filter(f => f.status === "live").length;
+                const completedCount = t.fixtures.filter(f => f.status === "completed").length;
+                const scheduledCount = t.fixtures.filter(f => f.status === "scheduled").length;
+
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedTournamentId(t.id)}
+                    className={`text-left p-6 rounded-[22px] border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between h-48 group ${
+                      isSelected
+                        ? "bg-white/5 border-gold shadow-lg shadow-gold/5 scale-[1.02]"
+                        : "bg-white/[0.02] border-white/5 hover:border-white/20 hover:bg-white/[0.04]"
+                    }`}
+                  >
+                    {/* Glowing highlight for active selection */}
+                    {isSelected && (
+                      <div className="absolute -top-10 -right-10 w-24 h-24 bg-gold/10 rounded-full blur-2xl" />
+                    )}
+                    
+                    <div>
+                      <div className="flex justify-between items-start gap-2 mb-2">
+                        <h3 className="font-space font-extrabold text-base text-white tracking-wide group-hover:text-gold transition-colors line-clamp-1">
+                          {t.name}
+                        </h3>
+                        {liveCount > 0 && (
+                          <span className="flex-shrink-0 flex items-center gap-1 bg-red-500/20 border border-red-500/30 px-2 py-0.5 rounded text-[8px] font-bold text-red-400 animate-pulse font-mono uppercase">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span> Live
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-1 text-[11px] text-text-secondary font-mono">
+                        <p className="flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5 text-text-secondary" /> Org: {t.organizer}
+                        </p>
+                        <p className="flex items-center gap-1.5">
+                          <MapPin className="h-3.5 w-3.5 text-text-secondary" /> {t.ground}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 border-t border-white/5 pt-3 flex justify-between items-center text-[10px] text-text-secondary font-mono">
+                      <span>Matches: {t.fixtures.length}</span>
+                      <div className="flex gap-2">
+                        {scheduledCount > 0 && <span className="text-blue">{scheduledCount} Sched</span>}
+                        {completedCount > 0 && <span className="text-green">{completedCount} Fin</span>}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* MATCHES SECTION GRID */}
-        <div className="w-full grid grid-cols-1 lg:grid-cols-3 gap-8 border-t border-white/5 pt-12">
+        {selectedTournament && (
+          <div className="w-full grid grid-cols-1 lg:grid-cols-3 gap-8 border-t border-white/5 pt-12">
           
           {/* COLUMN 1: LIVE MATCHES */}
           <div className="space-y-6">
@@ -297,8 +379,8 @@ export default function HomePage() {
               )}
             </div>
           </div>
-
         </div>
+      )}
       </main>
 
       <footer className="border-t border-white/5 py-8 text-center bg-[#050505] z-10 text-[10px] uppercase tracking-widest text-text-secondary font-mono">
