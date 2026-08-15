@@ -6,7 +6,7 @@ import { ArrowLeft, Check, Plus, Calendar, MapPin, Trophy, Shield, CalendarCheck
 import Link from "next/link";
 import Navigation from "@/components/Navigation";
 import StadiumBackground from "@/components/background/StadiumBackground";
-import { MockTournament, getTournaments, saveTournament, getTeams, saveTeam, getMatches, saveMatch, deleteMatch, getActiveUser, MockTeam, MockPlayer, deleteTournament } from "@/lib/mockData";
+import { MockTournament, getTournaments, saveTournament, getTeams, saveTeam, getMatches, saveMatch, deleteMatch, getActiveUser, MockTeam, MockPlayer, deleteTournament, resetAllData } from "@/lib/mockData";
 import { MatchState } from "@/lib/scorerEngine";
 
 export default function CreateTournamentPage() {
@@ -567,21 +567,36 @@ export default function CreateTournamentPage() {
                   Select one of your tournaments to manage matches, squads, and schedules, or create a brand new league.
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setStep(1);
-                  setTournamentName("");
-                  setOrgName("");
-                  setLocation("");
-                  setGround("");
-                  setOvers(20);
-                  setTeamsLimit(6);
-                  setRules("");
-                }}
-                className="bg-gradient-to-r from-gold to-yellow-600 text-black px-6 py-2.5 rounded-full text-xs font-bold font-space uppercase tracking-wider flex items-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-gold/10 cursor-pointer"
-              >
-                <Plus className="h-4 w-4 stroke-[3]" /> Create Tournament
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => {
+                    if (confirm("WARNING: This will delete ALL tournaments, teams, and match scoreboards from both your browser and the Supabase cloud database. This action CANNOT be undone.\n\nAre you sure you want to proceed?")) {
+                      if (confirm("Double Confirmation: Please click OK to confirm that you want to delete all tournaments.")) {
+                        resetAllData();
+                        setStep(1); // Since all tournaments are deleted, take them to step 1 to create one
+                      }
+                    }
+                  }}
+                  className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 px-6 py-2.5 rounded-full text-xs font-bold font-space uppercase tracking-wider hover:text-white transition-all cursor-pointer"
+                >
+                  Delete All Tournaments
+                </button>
+                <button
+                  onClick={() => {
+                    setStep(1);
+                    setTournamentName("");
+                    setOrgName("");
+                    setLocation("");
+                    setGround("");
+                    setOvers(20);
+                    setTeamsLimit(6);
+                    setRules("");
+                  }}
+                  className="bg-gradient-to-r from-gold to-yellow-600 text-black px-6 py-2.5 rounded-full text-xs font-bold font-space uppercase tracking-wider flex items-center gap-2 hover:opacity-90 transition-opacity shadow-lg shadow-gold/10 cursor-pointer"
+                >
+                  <Plus className="h-4 w-4 stroke-[3]" /> Create Tournament
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

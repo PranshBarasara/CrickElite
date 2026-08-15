@@ -726,3 +726,29 @@ export function deleteTournament(tournamentId: string) {
 
   window.dispatchEvent(new Event("storage"));
 }
+
+export function resetAllData() {
+  if (typeof window === "undefined") return;
+
+  // Clear all local storage keys for all users
+  ["CrickElite", "DDUGroundCricket", "pranscric"].forEach(prefix => {
+    localStorage.removeItem(`${prefix}_tournaments`);
+    localStorage.removeItem(`${prefix}_teams`);
+    localStorage.removeItem(`${prefix}_matches`);
+  });
+
+  // Delete all rows in Supabase
+  if (supabase) {
+    supabase.from("crickelite_tournaments").delete().neq("id", "dummy-id-to-delete-all").then(({ error }) => {
+      if (error) console.error("Error clearing tournaments in Supabase:", error);
+    });
+    supabase.from("crickelite_teams").delete().neq("id", "dummy-id-to-delete-all").then(({ error }) => {
+      if (error) console.error("Error clearing teams in Supabase:", error);
+    });
+    supabase.from("crickelite_matches").delete().neq("id", "dummy-id-to-delete-all").then(({ error }) => {
+      if (error) console.error("Error clearing matches in Supabase:", error);
+    });
+  }
+
+  window.dispatchEvent(new Event("storage"));
+}
