@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Radio, Calendar, History, ArrowRight, Play, Trophy, Users, Shield, Plus, Trash2, MapPin } from "lucide-react";
+import { Radio, Calendar, History, ArrowRight, Play, Trophy, Users, Shield, Plus, Trash2, MapPin, X, Award } from "lucide-react";
 import StadiumBackground from "@/components/background/StadiumBackground";
 import Navigation from "@/components/Navigation";
 import Loader from "@/components/loader/Loader";
@@ -16,6 +16,14 @@ export default function HomePage() {
   const [tournaments, setTournaments] = useState<MockTournament[]>([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [selectedDetailMatch, setSelectedDetailMatch] = useState<MatchState | null>(null);
+  const [detailTab, setDetailTab] = useState<"innings1" | "innings2">("innings1");
+
+  useEffect(() => {
+    if (selectedDetailMatch) {
+      setDetailTab("innings1");
+    }
+  }, [selectedDetailMatch]);
 
   // Helper to get local date string YYYY-MM-DD
   const getLocalDateString = () => {
@@ -334,9 +342,10 @@ export default function HomePage() {
                 </div>
               ) : (
                 pastMatches.map((m) => (
-                  <div
+                  <button
                     key={m.matchId}
-                    className="glass p-6 rounded-[22px] border border-white/5 hover:border-green/20 transition-colors"
+                    onClick={() => setSelectedDetailMatch(m)}
+                    className="w-full text-left glass p-6 rounded-[22px] border border-white/5 hover:border-green/20 hover:bg-white/[0.02] transition-all cursor-pointer block relative overflow-hidden"
                   >
                     <div className="flex justify-between items-center text-[9px] font-mono text-text-secondary mb-3">
                       <span>COMPLETED</span>
@@ -346,7 +355,10 @@ export default function HomePage() {
                         </span>
                         {isLoggedIn && (
                           <button
-                            onClick={() => handleDeleteCompletedMatch(m.matchId)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCompletedMatch(m.matchId);
+                            }}
                             className="p-1 text-red-400 hover:text-white rounded hover:bg-white/5 transition-all cursor-pointer"
                             title="Delete Completed Match"
                           >
@@ -374,13 +386,208 @@ export default function HomePage() {
                         <Trophy className="h-3.5 w-3.5" /> Winner: {m.winnerName}
                       </div>
                     )}
-                  </div>
+                  </button>
                 ))
               )}
             </div>
           </div>
         </div>
-      )}
+        )}
+
+        {/* MATCH DETAIL SCORECARD MODAL */}
+        <AnimatePresence>
+          {selectedDetailMatch && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-[#0B0C10] border border-white/10 shadow-2xl relative max-w-4xl w-full p-6 md:p-8 rounded-[28px] overflow-hidden my-8"
+              >
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedDetailMatch(null)}
+                  className="absolute top-4 right-4 p-1.5 text-text-secondary hover:text-white rounded-full hover:bg-white/5 transition-all cursor-pointer z-10"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+
+                {/* Header */}
+                <div className="text-center mb-6">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gold/10 border border-gold/20 text-gold mb-3">
+                    <Award className="h-5 w-5" />
+                  </span>
+                  <h3 className="font-space text-2xl font-bold text-white tracking-tight">
+                    {selectedDetailMatch.team1Name} vs {selectedDetailMatch.team2Name}
+                  </h3>
+                  <p className="text-[10px] text-text-secondary mt-1.5 uppercase tracking-wider font-mono">
+                    {selectedDetailMatch.matchCategory || "League Match"} • {selectedDetailMatch.ground} • {selectedDetailMatch.matchDate}
+                  </p>
+                  {selectedDetailMatch.winnerName && (
+                    <div className="mt-3 inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-space font-bold uppercase text-[10px] tracking-wider px-4 py-1.5 rounded-full">
+                      🏆 Winner: {selectedDetailMatch.winnerName}
+                    </div>
+                  )}
+                </div>
+
+                {/* Innings Tabs */}
+                {selectedDetailMatch.secondInnings && (
+                  <div className="flex gap-2 bg-white/5 p-1 rounded-xl mb-6 max-w-xs mx-auto">
+                    <button
+                      onClick={() => setDetailTab("innings1")}
+                      className={`flex-1 text-center py-2 rounded-lg text-xs font-bold font-space uppercase transition-all cursor-pointer ${
+                        detailTab === "innings1"
+                          ? "bg-gold text-black shadow"
+                          : "text-text-secondary hover:text-white"
+                      }`}
+                    >
+                      {selectedDetailMatch.team1Name}
+                    </button>
+                    <button
+                      onClick={() => setDetailTab("innings2")}
+                      className={`flex-1 text-center py-2 rounded-lg text-xs font-bold font-space uppercase transition-all cursor-pointer ${
+                        detailTab === "innings2"
+                          ? "bg-gold text-black shadow"
+                          : "text-text-secondary hover:text-white"
+                      }`}
+                    >
+                      {selectedDetailMatch.team2Name}
+                    </button>
+                  </div>
+                )}
+
+                {/* Scorecard Table View */}
+                {(() => {
+                  const innings = detailTab === "innings1" ? selectedDetailMatch.firstInnings : selectedDetailMatch.secondInnings;
+                  if (!innings) return <p className="text-center text-xs text-text-secondary">No innings details recorded.</p>;
+
+                  const battersList = Object.values(innings.battingStats);
+                  const bowlersList = Object.values(innings.bowlingStats);
+
+                  return (
+                    <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-2">
+                      {/* Score summary */}
+                      <div className="flex justify-between items-center bg-white/5 border border-white/5 p-4 rounded-2xl text-sm font-mono">
+                        <div>
+                          <span className="text-text-secondary mr-1">Innings Score:</span>
+                          <span className="text-white font-bold">{innings.runs}/{innings.wickets}</span>
+                        </div>
+                        <div>
+                          <span className="text-text-secondary mr-1">Overs:</span>
+                          <span className="text-white font-bold">{ballsToOvers(innings.ballsBowled)} / {innings.oversLimit}</span>
+                        </div>
+                        <div>
+                          <span className="text-text-secondary mr-1">Extras:</span>
+                          <span className="text-white font-bold">
+                            {innings.extras.wides + innings.extras.noballs + innings.extras.byes + innings.extras.legbyes}
+                            <span className="text-[10px] text-text-secondary ml-1">
+                              (w{innings.extras.wides} nb{innings.extras.noballs} b{innings.extras.byes} lb{innings.extras.legbyes})
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Batting scorecard */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs uppercase font-mono tracking-wider text-gold font-bold">Batting Scorecard</h4>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                              <tr className="border-b border-white/10 text-[10px] uppercase font-mono text-text-secondary">
+                                <th className="py-2 pr-4">Batter</th>
+                                <th className="py-2 px-2 text-center">Status</th>
+                                <th className="py-2 px-2 text-right">Runs</th>
+                                <th className="py-2 px-2 text-right">Balls</th>
+                                <th className="py-2 px-2 text-right">4s</th>
+                                <th className="py-2 px-2 text-right">6s</th>
+                                <th className="py-2 pl-4 text-right">SR</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {battersList.length === 0 ? (
+                                <tr>
+                                  <td colSpan={7} className="py-3 text-center text-text-secondary italic">No batting stats logged.</td>
+                                </tr>
+                              ) : (
+                                battersList.map((b) => {
+                                  const sr = b.ballsFaced > 0 ? ((b.runs / b.ballsFaced) * 100).toFixed(1) : "0.0";
+                                  const isCaptain = b.name === selectedDetailMatch.team1CaptainName || b.name === selectedDetailMatch.team2CaptainName;
+                                  return (
+                                    <tr key={b.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                                      <td className="py-2.5 pr-4 font-semibold text-white">
+                                        {b.name} {isCaptain && <span className="text-gold text-[9px] font-bold ml-1 font-mono">(C)</span>}
+                                      </td>
+                                      <td className="py-2.5 px-2 text-center text-text-secondary font-mono text-[10px]">
+                                        {b.isOut ? (
+                                          <span className="text-red-400 capitalize">
+                                            {b.dismissalType?.replace("_", " ") || "Out"}
+                                          </span>
+                                        ) : (
+                                          <span className="text-green-400 font-bold uppercase">Not Out</span>
+                                        )}
+                                      </td>
+                                      <td className="py-2.5 px-2 text-right font-bold text-gold font-mono">{b.runs}</td>
+                                      <td className="py-2.5 px-2 text-right text-text-secondary font-mono">{b.ballsFaced}</td>
+                                      <td className="py-2.5 px-2 text-right text-text-secondary font-mono">{b.fours}</td>
+                                      <td className="py-2.5 px-2 text-right text-text-secondary font-mono">{b.sixes}</td>
+                                      <td className="py-2.5 pl-4 text-right text-text-secondary font-mono">{sr}</td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Bowling scorecard */}
+                      <div className="space-y-2 pt-2">
+                        <h4 className="text-xs uppercase font-mono tracking-wider text-blue font-bold">Bowling Scorecard</h4>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse text-xs">
+                            <thead>
+                              <tr className="border-b border-white/10 text-[10px] uppercase font-mono text-text-secondary">
+                                <th className="py-2 pr-4">Bowler</th>
+                                <th className="py-2 px-2 text-right">Overs</th>
+                                <th className="py-2 px-2 text-right">Maidens</th>
+                                <th className="py-2 px-2 text-right">Runs</th>
+                                <th className="py-2 px-2 text-right">Wkts</th>
+                                <th className="py-2 pl-4 text-right">Econ</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {bowlersList.length === 0 ? (
+                                <tr>
+                                  <td colSpan={6} className="py-3 text-center text-text-secondary italic">No bowling stats logged.</td>
+                                </tr>
+                              ) : (
+                                bowlersList.map((bo) => {
+                                  const overs = ballsToOvers(bo.ballsBowled);
+                                  const econ = bo.ballsBowled > 0 ? ((bo.runsConceded / bo.ballsBowled) * 6).toFixed(2) : "0.00";
+                                  return (
+                                    <tr key={bo.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                                      <td className="py-2.5 pr-4 font-semibold text-white">{bo.name}</td>
+                                      <td className="py-2.5 px-2 text-right text-text-secondary font-mono">{overs}</td>
+                                      <td className="py-2.5 px-2 text-right text-text-secondary font-mono">{bo.maidens}</td>
+                                      <td className="py-2.5 px-2 text-right font-bold text-red-400 font-mono">{bo.runsConceded}</td>
+                                      <td className="py-2.5 px-2 text-right font-bold text-green-400 font-mono">{bo.wickets}</td>
+                                      <td className="py-2.5 pl-4 text-right text-text-secondary font-mono">{econ}</td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </main>
 
       <footer className="border-t border-white/5 py-8 text-center bg-[#050505] z-10 text-[10px] uppercase tracking-widest text-text-secondary font-mono">

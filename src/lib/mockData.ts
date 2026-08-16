@@ -298,9 +298,9 @@ export function runMatchSimulationStep(match: MatchState): MatchState {
         const fixture = t.fixtures.find((f) => f.matchId === match.matchId);
         if (fixture) {
           fixture.status = "completed";
+          saveTournament(t);
         }
       });
-      localStorage.setItem("pranscric_tournaments", JSON.stringify(tournaments));
     }
     
     saveMatch(match);
