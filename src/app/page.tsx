@@ -468,20 +468,20 @@ export default function HomePage() {
                   return (
                     <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-2">
                       {/* Score summary */}
-                      <div className="flex justify-between items-center bg-white/5 border border-white/5 p-4 rounded-2xl text-sm font-mono">
-                        <div>
-                          <span className="text-text-secondary mr-1">Innings Score:</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white/5 border border-white/5 p-4 rounded-2xl text-xs sm:text-sm font-mono">
+                        <div className="flex sm:flex-col justify-between sm:justify-start gap-1">
+                          <span className="text-text-secondary">Innings Score:</span>
                           <span className="text-white font-bold">{innings.runs}/{innings.wickets}</span>
                         </div>
-                        <div>
-                          <span className="text-text-secondary mr-1">Overs:</span>
+                        <div className="flex sm:flex-col justify-between sm:justify-start gap-1 sm:border-l sm:border-white/10 sm:pl-4">
+                          <span className="text-text-secondary">Overs:</span>
                           <span className="text-white font-bold">{ballsToOvers(innings.ballsBowled)} / {innings.oversLimit}</span>
                         </div>
-                        <div>
-                          <span className="text-text-secondary mr-1">Extras:</span>
+                        <div className="flex sm:flex-col justify-between sm:justify-start gap-1 sm:border-l sm:border-white/10 sm:pl-4">
+                          <span className="text-text-secondary">Extras:</span>
                           <span className="text-white font-bold">
                             {innings.extras.wides + innings.extras.noballs + innings.extras.byes + innings.extras.legbyes}
-                            <span className="text-[10px] text-text-secondary ml-1">
+                            <span className="text-[10px] text-text-secondary ml-1 font-light block sm:inline">
                               (w{innings.extras.wides} nb{innings.extras.noballs} b{innings.extras.byes} lb{innings.extras.legbyes})
                             </span>
                           </span>
