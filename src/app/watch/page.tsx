@@ -6,7 +6,7 @@ import { Play, Pause, AlertCircle, ArrowLeft, RefreshCw, Send, CheckCircle2, Awa
 import Link from "next/link";
 import Navigation from "@/components/Navigation";
 import StadiumBackground from "@/components/background/StadiumBackground";
-import { getMatches, saveMatch, getTeams, MockTeam } from "@/lib/mockData";
+import { getMatches, saveMatch, getTeams, MockTeam, getTournaments } from "@/lib/mockData";
 import { MatchState, ballsToOvers, calculateCRR, calculateRRR, BallRecord } from "@/lib/scorerEngine";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from "recharts";
 
@@ -537,7 +537,9 @@ export default function WatchPage() {
                           <span className="text-[10px] uppercase font-mono text-text-secondary block mb-1">
                             Req. Run Rate
                           </span>
-                          <span className="font-sora text-lg font-bold text-blue">{rrr}</span>
+                          <span className="font-sora text-lg font-bold text-blue">
+                            {innings.runs >= target ? "0.00" : rrr}
+                          </span>
                         </div>
                       )}
 
@@ -559,7 +561,17 @@ export default function WatchPage() {
                             Required Runs
                           </span>
                           <span className="font-sora text-lg font-bold text-emerald-400">
-                            {target - innings.runs} runs off {remainingBalls} balls
+                            {innings.runs >= target ? (
+                              <span className="text-emerald-400 font-extrabold uppercase animate-pulse">
+                                Match Won! 🎉
+                              </span>
+                            ) : remainingBalls <= 0 ? (
+                              <span className="text-red-400 font-extrabold uppercase">
+                                Overs Ended
+                              </span>
+                            ) : (
+                              `${target - innings.runs} runs off ${remainingBalls} balls`
+                            )}
                           </span>
                         </div>
                       )}
@@ -851,39 +863,53 @@ export default function WatchPage() {
                   animate={{ opacity: 1 }}
                   className="grid grid-cols-1 md:grid-cols-2 gap-8"
                 >
-                  {getTeams().map((team: MockTeam) => (
-                    <div key={team.id} className="glass p-6 rounded-[22px] border border-white/5">
-                      <div className="flex items-center gap-3 mb-6">
-                        <span className="text-3xl">{team.logo}</span>
-                        <div>
-                          <h3 className="font-space font-bold text-lg text-white">{team.name}</h3>
-                          <p className="text-[10px] text-text-secondary uppercase font-mono">
-                            Coach: {team.coach} • Captain: {team.captain}
-                          </p>
+                  {(() => {
+                    const allTeams = getTeams();
+                    if (!match) return [];
+
+                    const tournaments = getTournaments();
+                    const activeTournament = tournaments.find((t) =>
+                      t.fixtures.some((f) => f.matchId === match.matchId)
+                    );
+
+                    const filteredTeams = activeTournament
+                      ? allTeams.filter((t) => activeTournament.teams.includes(t.id))
+                      : allTeams.filter((t) => t.name === match.team1Name || t.name === match.team2Name);
+
+                    return filteredTeams.map((team: MockTeam) => (
+                      <div key={team.id} className="glass p-6 rounded-[22px] border border-white/5">
+                        <div className="flex items-center gap-3 mb-6">
+                          <span className="text-3xl">{team.logo}</span>
+                          <div>
+                            <h3 className="font-space font-bold text-lg text-white">{team.name}</h3>
+                            <p className="text-[10px] text-text-secondary uppercase font-mono">
+                              Coach: {team.coach} • Captain: {team.captain}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="divide-y divide-white/5 space-y-2">
+                          {team.players.map((player) => {
+                            const isCaptain = player.name === match?.team1CaptainName || player.name === match?.team2CaptainName;
+                            return (
+                              <div key={player.id} className="flex justify-between items-center text-xs py-2.5">
+                                <div>
+                                  <span className="font-semibold text-white">
+                                    {player.name}
+                                    {isCaptain && <span className="text-gold font-extrabold text-[10px] ml-1.5 font-mono" title="Team Captain"> (C)</span>}
+                                  </span>
+                                  <span className="text-[10px] text-text-secondary ml-2 font-mono">({player.role})</span>
+                                </div>
+                                <span className="text-text-secondary text-[10px] font-light">
+                                  {player.battingStyle}
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-
-                      <div className="divide-y divide-white/5 space-y-2">
-                        {team.players.map((player) => {
-                          const isCaptain = player.name === match?.team1CaptainName || player.name === match?.team2CaptainName;
-                          return (
-                            <div key={player.id} className="flex justify-between items-center text-xs py-2.5">
-                              <div>
-                                <span className="font-semibold text-white">
-                                  {player.name}
-                                  {isCaptain && <span className="text-gold font-extrabold text-[10px] ml-1.5 font-mono" title="Team Captain"> (C)</span>}
-                                </span>
-                                <span className="text-[10px] text-text-secondary ml-2 font-mono">({player.role})</span>
-                              </div>
-                            <span className="text-text-secondary text-[10px] font-light">
-                              {player.battingStyle}
-                            </span>
-                          </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </motion.div>
               )}
             </div>
