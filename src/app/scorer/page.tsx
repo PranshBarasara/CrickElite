@@ -14,6 +14,7 @@ export default function ScorerPage() {
   const [loading, setLoading] = useState(true);
   const [matchId, setMatchId] = useState("");
   const [match, setMatch] = useState<MatchState | null>(null);
+  const [permissionError, setPermissionError] = useState(false);
   const [history, setHistory] = useState<MatchState[]>([]);
 
   // Modals state
@@ -72,8 +73,19 @@ export default function ScorerPage() {
 
     const loadMatch = () => {
       const matches = getMatches();
-      const current = matches.find((m) => m.matchId === mId) || matches[0];
-      setMatch(current || null);
+      if (mId) {
+        const current = matches.find((m) => m.matchId === mId);
+        if (!current) {
+          setPermissionError(true);
+          setMatch(null);
+          return;
+        }
+        setPermissionError(false);
+        setMatch(current);
+      } else {
+        setPermissionError(false);
+        setMatch(matches[0] || null);
+      }
     };
 
     loadMatch();
@@ -102,6 +114,30 @@ export default function ScorerPage() {
               Please authenticate using the **Login Console** in the header section with admin credentials to access live scoring.
             </p>
           </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  if (permissionError) {
+    return (
+      <div className="relative min-h-screen flex flex-col font-inter text-white">
+        <StadiumBackground />
+        <Navigation />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="glass max-w-md w-full p-8 rounded-3xl border border-red-500/20 text-center shadow-2xl space-y-4">
+            <ShieldAlert className="h-12 w-12 text-red-400 mx-auto" />
+            <h2 className="font-space text-xl font-bold text-white">Access Denied</h2>
+            <p className="text-xs text-text-secondary leading-relaxed">
+              You do not have permission to score this match session. The selected match belongs to a different league organizer.
+            </p>
+            <Link
+              href="/tournament/create"
+              className="inline-block bg-gradient-to-r from-gold to-yellow-600 text-black px-6 py-2.5 rounded-full text-xs font-bold font-space uppercase tracking-wider hover:opacity-90 transition-opacity"
+            >
+              Go to Tournament Dashboard
+            </Link>
+          </div>
         </div>
       </div>
     );

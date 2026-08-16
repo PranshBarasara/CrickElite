@@ -95,6 +95,17 @@ export default function CreateTournamentPage() {
   // Load tournament-specific teams whenever tournament changes
   useEffect(() => {
     if (activeTournament) {
+      const currentUser = getActiveUser();
+      const isOwner = (currentUser === "DDUGroundCricket" && activeTournament.organizer === "DDUGroundCricket") ||
+                      (currentUser === "CrickElite" && activeTournament.organizer !== "DDUGroundCricket");
+      
+      if (!isOwner) {
+        setActiveTournament(null);
+        setStep(0);
+        alert("Access Denied: You do not have permission to manage this tournament.");
+        return;
+      }
+
       const allTeams = getTeams();
       const filtered = allTeams.filter(t => activeTournament.teams.includes(t.id));
       setTournamentTeams(filtered);
