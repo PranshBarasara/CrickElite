@@ -6,6 +6,9 @@ export default function StadiumBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    if (isMobile) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 

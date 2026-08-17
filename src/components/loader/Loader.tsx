@@ -97,6 +97,12 @@ export default function Loader({ onComplete }: LoaderProps) {
 
   // Progress logic
   useEffect(() => {
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    if (isMobile) {
+      onComplete();
+      return;
+    }
+
     // Start audio synthesis
     playBatHitSound();
 
@@ -128,6 +134,9 @@ export default function Loader({ onComplete }: LoaderProps) {
 
   // 3D Cricket Ball canvas rendering
   useEffect(() => {
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+    if (isMobile) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
