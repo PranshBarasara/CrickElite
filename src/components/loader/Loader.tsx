@@ -12,8 +12,6 @@ export default function Loader({ onComplete }: LoaderProps) {
   const [loadingText, setLoadingText] = useState("Preparing Stadium...");
   const [isVisible, setIsVisible] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-
   const texts = [
     "Preparing Stadium...",
     "Loading Match Intelligence...",
@@ -22,79 +20,6 @@ export default function Loader({ onComplete }: LoaderProps) {
     "Welcome to CrickVerse Elite"
   ];
 
-  // Synthesize Crowd Ambient & Bat Hit Sound using Web Audio API (No files required!)
-  const playBatHitSound = () => {
-    try {
-      // Initialize Audio Context on demand
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      audioContextRef.current = ctx;
-
-      // 1. Synthesize Crowd Roar (White Noise filtered)
-      const bufferSize = ctx.sampleRate * 2; // 2 seconds
-      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = Math.random() * 2 - 1;
-      }
-      
-      const noise = ctx.createBufferSource();
-      noise.buffer = buffer;
-
-      const noiseFilter = ctx.createBiquadFilter();
-      noiseFilter.type = "bandpass";
-      noiseFilter.frequency.setValueAtTime(400, ctx.currentTime);
-      noiseFilter.Q.setValueAtTime(1.0, ctx.currentTime);
-
-      const noiseGain = ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.01, ctx.currentTime);
-      // Fade in crowd
-      noiseGain.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 1.2);
-      // Fade out crowd after hit
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2.0);
-
-      noise.connect(noiseFilter);
-      noiseFilter.connect(noiseGain);
-      noiseGain.connect(ctx.destination);
-      noise.start();
-
-      // 2. Synthesize Bat Hit Sound (after a small delay, e.g. 1.3s)
-      const hitTime = ctx.currentTime + 1.3;
-
-      // Click / Wood Impact (Sine wave with rapid decay)
-      const osc = ctx.createOscillator();
-      const oscGain = ctx.createGain();
-      
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(800, hitTime);
-      osc.frequency.exponentialRampToValueAtTime(150, hitTime + 0.1);
-
-      oscGain.gain.setValueAtTime(0.0, ctx.currentTime);
-      oscGain.gain.setValueAtTime(0.8, hitTime); // strike
-      oscGain.gain.exponentialRampToValueAtTime(0.001, hitTime + 0.15); // rapid decay
-
-      // Reverb-like echo for the hit
-      const delay = ctx.createDelay();
-      delay.delayTime.setValueAtTime(0.03, hitTime);
-      const delayGain = ctx.createGain();
-      delayGain.gain.setValueAtTime(0.15, hitTime);
-      delayGain.gain.exponentialRampToValueAtTime(0.001, hitTime + 0.3);
-
-      osc.connect(oscGain);
-      oscGain.connect(ctx.destination);
-
-      oscGain.connect(delay);
-      delay.connect(delayGain);
-      delayGain.connect(ctx.destination);
-
-      osc.start(hitTime);
-      osc.stop(hitTime + 0.4);
-    } catch (e) {
-      console.warn("Audio Context initialization failed or blocked by browser autocomplete:", e);
-    }
-  };
-
   // Progress logic
   useEffect(() => {
     const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
@@ -102,9 +27,6 @@ export default function Loader({ onComplete }: LoaderProps) {
       onComplete();
       return;
     }
-
-    // Start audio synthesis
-    playBatHitSound();
 
     const interval = setInterval(() => {
       setProgress((prev) => {
