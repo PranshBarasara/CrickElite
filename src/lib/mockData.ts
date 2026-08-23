@@ -103,19 +103,25 @@ export function getMatches(): MatchState[] {
   if (typeof window === "undefined") return [];
   initSupabaseSync();
   const currentUser = getActiveUser();
+  let matchesList: MatchState[] = [];
   if (currentUser) {
     const stored = localStorage.getItem(`${currentUser}_matches`) || (currentUser === "CrickElite" ? localStorage.getItem("pranscric_matches") : null);
-    return stored ? JSON.parse(stored) : [];
+    matchesList = stored ? JSON.parse(stored) : [];
   } else {
-    const all: MatchState[] = [];
     ["CrickElite", "DDUGroundCricket"].forEach(user => {
       const stored = localStorage.getItem(`${user}_matches`) || (user === "CrickElite" ? localStorage.getItem("pranscric_matches") : null);
       if (stored) {
-        all.push(...JSON.parse(stored));
+        matchesList.push(...JSON.parse(stored));
       }
     });
-    return all;
   }
+  const uniqueMap = new Map<string, MatchState>();
+  matchesList.forEach(m => {
+    if (m && m.matchId) {
+      uniqueMap.set(m.matchId, m);
+    }
+  });
+  return Array.from(uniqueMap.values());
 }
 
 export function saveMatch(match: MatchState) {
@@ -151,19 +157,25 @@ export function getTournaments(): MockTournament[] {
   if (typeof window === "undefined") return [];
   initSupabaseSync();
   const currentUser = getActiveUser();
+  let tournamentList: MockTournament[] = [];
   if (currentUser) {
     const stored = localStorage.getItem(`${currentUser}_tournaments`) || (currentUser === "CrickElite" ? localStorage.getItem("pranscric_tournaments") : null);
-    return stored ? JSON.parse(stored) : [];
+    tournamentList = stored ? JSON.parse(stored) : [];
   } else {
-    const all: MockTournament[] = [];
     ["CrickElite", "DDUGroundCricket"].forEach(user => {
       const stored = localStorage.getItem(`${user}_tournaments`) || (user === "CrickElite" ? localStorage.getItem("pranscric_tournaments") : null);
       if (stored) {
-        all.push(...JSON.parse(stored));
+        tournamentList.push(...JSON.parse(stored));
       }
     });
-    return all;
   }
+  const uniqueMap = new Map<string, MockTournament>();
+  tournamentList.forEach(t => {
+    if (t && t.id) {
+      uniqueMap.set(t.id, t);
+    }
+  });
+  return Array.from(uniqueMap.values());
 }
 
 export function saveTournament(tournament: MockTournament) {

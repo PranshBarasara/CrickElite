@@ -17,7 +17,7 @@ export default function Loader({ onComplete }: LoaderProps) {
     "Loading Match Intelligence...",
     "Connecting Umpires...",
     "Synchronizing Score...",
-    "Welcome to CrickVerse Elite"
+    "Welcome to CrickElite"
   ];
 
   // Progress logic
