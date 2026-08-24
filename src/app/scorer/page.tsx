@@ -925,16 +925,36 @@ export default function ScorerPage() {
                   getRecentBalls().map((ball) => {
                     const isPenalty = ball.ballId.startsWith("penalty-");
                     let badge = "bg-white/5 text-white";
-                    if (isPenalty) {
+                    let label = ball.runsBatter.toString();
+
+                    if (ball.wicketType) {
+                      badge = "bg-red-500/20 text-red-400 border border-red-500/30";
+                      label = "W";
+                    } else if (isPenalty) {
                       badge = ball.runsExtras >= 0 
                         ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 font-extrabold" 
                         : "bg-purple-500/20 text-purple-400 border border-purple-500/30 font-extrabold animate-pulse";
+                      label = `${ball.runsExtras >= 0 ? "+" : ""}${ball.runsExtras}`;
+                    } else if (ball.extraType === "wide") {
+                      badge = "bg-amber-500/10 text-amber-400 border border-amber-500/20";
+                      const runs = ball.runsBatter || (ball.runsExtras - 1);
+                      label = runs > 0 ? `wd+${runs}` : "wd";
+                    } else if (ball.extraType === "noball") {
+                      badge = "bg-red-500/10 text-red-400 border border-red-500/20";
+                      const runs = ball.runsBatter || (ball.runsExtras - 1);
+                      label = runs > 0 ? `nb+${runs}` : "nb";
                     } else if (ball.runsBatter === 6) {
                       badge = "bg-gold/20 text-gold border border-gold/30";
+                      label = "6";
                     } else if (ball.runsBatter === 4) {
                       badge = "bg-blue/20 text-blue border border-blue/30";
-                    } else if (ball.wicketType) {
-                      badge = "bg-red-500/20 text-red-400 border border-red-500/30";
+                      label = "4";
+                    } else if (ball.extraType === "bye") {
+                      badge = "bg-white/5 text-white/50 border border-white/5";
+                      label = `b${ball.runsExtras}`;
+                    } else if (ball.extraType === "legbye") {
+                      badge = "bg-white/5 text-white/50 border border-white/5";
+                      label = `lb${ball.runsExtras}`;
                     }
 
                     return (
@@ -943,12 +963,7 @@ export default function ScorerPage() {
                         className={`h-7 w-7 rounded-lg flex items-center justify-center text-[10px] font-mono font-bold ${badge}`}
                         title={ball.commentary}
                       >
-                        {ball.wicketType 
-                          ? "W" 
-                          : isPenalty 
-                            ? `${ball.runsExtras >= 0 ? "+" : ""}${ball.runsExtras}`
-                            : ball.runsBatter + (ball.extraType ? "e" : "")
-                        }
+                        {label}
                       </span>
                     );
                   })
