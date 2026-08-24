@@ -497,25 +497,41 @@ export default function HomePage() {
                   return (
                     <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-2">
                       {/* Score summary */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-white/5 border border-white/5 p-4 rounded-2xl text-xs sm:text-sm font-mono">
-                        <div className="flex sm:flex-col justify-between sm:justify-start gap-1">
-                          <span className="text-text-secondary">Innings Score:</span>
-                          <span className="text-white font-bold">{innings.runs}/{innings.wickets}</span>
-                        </div>
-                        <div className="flex sm:flex-col justify-between sm:justify-start gap-1 sm:border-l sm:border-white/10 sm:pl-4">
-                          <span className="text-text-secondary">Overs:</span>
-                          <span className="text-white font-bold">{ballsToOvers(innings.ballsBowled)} / {innings.oversLimit}</span>
-                        </div>
-                        <div className="flex sm:flex-col justify-between sm:justify-start gap-1 sm:border-l sm:border-white/10 sm:pl-4">
-                          <span className="text-text-secondary">Extras:</span>
-                          <span className="text-white font-bold">
-                            {innings.extras.wides + innings.extras.noballs + innings.extras.byes + innings.extras.legbyes}
-                            <span className="text-[10px] text-text-secondary ml-1 font-light block sm:inline">
-                              (w{innings.extras.wides} nb{innings.extras.noballs} b{innings.extras.byes} lb{innings.extras.legbyes})
-                            </span>
-                          </span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const customAdjustRuns = innings.balls
+                          ? innings.balls
+                              .filter(b => b.ballId && b.ballId.startsWith("penalty-"))
+                              .reduce((sum, b) => sum + b.runsExtras, 0)
+                          : 0;
+
+                        return (
+                          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 bg-white/5 border border-white/5 p-4 rounded-2xl text-xs sm:text-sm font-mono">
+                            <div className="flex sm:flex-col justify-between sm:justify-start gap-1">
+                              <span className="text-text-secondary">Innings Score:</span>
+                              <span className="text-white font-bold">{innings.runs}/{innings.wickets}</span>
+                            </div>
+                            <div className="flex sm:flex-col justify-between sm:justify-start gap-1 sm:border-l sm:border-white/10 sm:pl-4">
+                              <span className="text-text-secondary">Overs:</span>
+                              <span className="text-white font-bold">{ballsToOvers(innings.ballsBowled)} / {innings.oversLimit}</span>
+                            </div>
+                            <div className="flex sm:flex-col justify-between sm:justify-start gap-1 sm:border-l sm:border-white/10 sm:pl-4">
+                              <span className="text-text-secondary">Extras:</span>
+                              <span className="text-white font-bold">
+                                {innings.extras.wides + innings.extras.noballs + innings.extras.byes + innings.extras.legbyes}
+                                <span className="text-[10px] text-text-secondary ml-1 font-light block sm:inline">
+                                  (w{innings.extras.wides} nb{innings.extras.noballs} b{innings.extras.byes} lb{innings.extras.legbyes})
+                                </span>
+                              </span>
+                            </div>
+                            <div className="flex sm:flex-col justify-between sm:justify-start gap-1 sm:border-l sm:border-white/10 sm:pl-4">
+                              <span className="text-text-secondary">Adjustments:</span>
+                              <span className={`font-bold ${customAdjustRuns >= 0 ? "text-amber-400" : "text-purple-400"}`}>
+                                {customAdjustRuns >= 0 ? "+" : ""}{customAdjustRuns} runs
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Batting scorecard */}
                       <div className="space-y-2">

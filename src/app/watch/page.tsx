@@ -761,7 +761,7 @@ export default function WatchPage() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="space-y-8"
+                  className="space-y-6"
                 >
                   {(() => {
                     const innings = match.currentInningsNumber === 1 ? match.firstInnings : match.secondInnings;
@@ -770,8 +770,7 @@ export default function WatchPage() {
                     const batters = Object.values(innings.battingStats);
                     const bowlers = Object.values(innings.bowlingStats);
 
-                    // Group runs per completed/active over
-                    const runsPerOver: Array<{ over: number; runs: number; wickets: number; balls: BallRecord[] }> = [];
+                    // Group balls by over
                     const overGroups: Record<number, BallRecord[]> = {};
                     innings.balls.forEach((b) => {
                       if (!overGroups[b.overNumber]) {
@@ -780,91 +779,132 @@ export default function WatchPage() {
                       overGroups[b.overNumber].push(b);
                     });
 
-                    Object.keys(overGroups).forEach((oKey) => {
-                      const overNum = parseInt(oKey);
-                      const balls = overGroups[overNum];
-                      let overRuns = 0;
-                      let overWickets = 0;
-                      balls.forEach((b) => {
-                        overRuns += b.runsBatter + b.runsExtras;
-                        if (b.wicketType) {
-                          overWickets++;
-                        }
-                      });
-                      runsPerOver.push({
-                        over: overNum + 1,
-                        runs: overRuns,
-                        wickets: overWickets,
-                        balls
-                      });
-                    });
+                    // Sort overs in descending order (highest over first)
+                    const sortedOvers = Object.keys(overGroups)
+                      .map(oKey => {
+                        const overNum = parseInt(oKey);
+                        const balls = overGroups[overNum];
+                        let overRuns = 0;
+                        balls.forEach((b) => {
+                          overRuns += b.runsBatter + b.runsExtras;
+                        });
+                        return {
+                          overNum: overNum + 1,
+                          runs: overRuns,
+                          balls
+                        };
+                      })
+                      .sort((a, b) => b.overNum - a.overNum);
 
                     return (
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Over-by-Over Runs List */}
-                        <div className="glass p-6 rounded-[22px] border border-white/5 space-y-4 lg:col-span-1">
-                          <h3 className="font-space font-bold text-sm text-white uppercase tracking-wider flex items-center gap-2 border-b border-white/5 pb-2">
-                            <span>Runs According to Over</span>
-                          </h3>
-                          <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
-                            {runsPerOver.length === 0 ? (
-                              <p className="text-xs text-text-secondary italic">No overs bowled yet.</p>
+                      <div className="glass p-6 md:p-8 rounded-[28px] border border-white/10 space-y-8 bg-[#0B0C10] shadow-2xl">
+                        {/* SCORECARD HEADER */}
+                        <div className="text-center border-b border-white/5 pb-4">
+                          <h2 className="font-space text-lg font-bold text-white tracking-wide uppercase">
+                            {innings.teamName}
+                          </h2>
+                          <div className="font-mono text-xl font-bold text-gold mt-1">
+                            {innings.runs}/{innings.wickets} <span className="text-xs text-text-secondary font-normal">({ballsToOvers(innings.ballsBowled)})</span>
+                          </div>
+                        </div>
+
+                        {/* OVER PREVIEW */}
+                        <div className="space-y-4">
+                          <h4 className="text-[10px] uppercase font-mono tracking-widest text-text-secondary font-bold">Over Preview</h4>
+                          <div className="space-y-3 font-mono">
+                            {sortedOvers.length === 0 ? (
+                              <p className="text-xs text-text-secondary italic">No overs completed yet.</p>
                             ) : (
-                              runsPerOver.map((o) => (
-                                <div key={o.over} className="flex justify-between items-center bg-white/5 border border-white/5 px-4 py-2.5 rounded-xl text-xs font-mono">
-                                  <div>
-                                    <span className="text-text-secondary font-bold">Over {o.over}</span>
-                                    <span className="text-[10px] text-text-secondary/70 ml-2 block sm:inline">
-                                      ({o.balls.length} deliveries)
-                                    </span>
+                              sortedOvers.map((o) => (
+                                <div key={o.overNum} className="flex justify-between items-center py-2 border-b border-white/5 last:border-b-0 hover:bg-white/[0.01] px-2 rounded-xl transition-colors">
+                                  <div className="flex items-center gap-4 flex-1">
+                                    <span className="text-xs font-semibold text-text-secondary w-12 flex-shrink-0">Ov {o.overNum}</span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {o.balls.map((ball) => {
+                                        const isPenalty = ball.ballId.startsWith("penalty-");
+                                        let badge = "bg-white/5 text-white/80 border border-white/10";
+                                        let label = ball.runsBatter.toString();
+
+                                        if (ball.wicketType) {
+                                          badge = "bg-red-600 text-white font-bold";
+                                          label = "W";
+                                        } else if (isPenalty) {
+                                          badge = ball.runsExtras >= 0 
+                                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
+                                            : "bg-purple-500/20 text-purple-400 border border-purple-500/30 animate-pulse";
+                                          label = `${ball.runsExtras >= 0 ? "+" : ""}${ball.runsExtras}`;
+                                        } else if (ball.runsBatter === 6) {
+                                          badge = "bg-cyan-500 text-black font-extrabold";
+                                          label = "6";
+                                        } else if (ball.runsBatter === 4) {
+                                          badge = "bg-blue-600 text-white font-extrabold";
+                                          label = "4";
+                                        } else if (ball.extraType === "wide") {
+                                          badge = "bg-amber-600/20 text-amber-400 border border-amber-500/30";
+                                          label = ball.runsExtras > 1 ? `wd+${ball.runsExtras - 1}` : "wd";
+                                        } else if (ball.extraType === "noball") {
+                                          badge = "bg-red-500/20 text-red-400 border border-red-500/30";
+                                          label = ball.runsExtras > 1 ? `nb+${ball.runsExtras - 1}` : "nb";
+                                        } else if (ball.extraType === "bye") {
+                                          badge = "bg-white/5 text-white/50 border border-white/5";
+                                          label = `b${ball.runsExtras}`;
+                                        } else if (ball.extraType === "legbye") {
+                                          badge = "bg-white/5 text-white/50 border border-white/5";
+                                          label = `lb${ball.runsExtras}`;
+                                        }
+
+                                        return (
+                                          <span
+                                            key={ball.ballId}
+                                            className={`h-7 w-7 rounded-full flex items-center justify-center text-[9px] font-mono font-bold ${badge}`}
+                                            title={ball.commentary}
+                                          >
+                                            {label}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-white font-bold">{o.runs} runs</span>
-                                    {o.wickets > 0 && (
-                                      <span className="bg-red-500/20 text-red-400 font-bold px-1.5 py-0.5 rounded text-[10px]">
-                                        {o.wickets} Wkt
-                                      </span>
-                                    )}
-                                  </div>
+                                  <span className="text-xs font-semibold text-white/90">{o.runs} runs</span>
                                 </div>
                               ))
                             )}
                           </div>
                         </div>
 
-                        {/* Batters details */}
-                        <div className="glass p-6 rounded-[22px] border border-white/5 space-y-4 lg:col-span-1">
-                          <h3 className="font-space font-bold text-sm text-gold uppercase tracking-wider flex items-center gap-2 border-b border-white/5 pb-2">
-                            <span>Active & Previous Batters</span>
-                          </h3>
-                          <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                        {/* BATTER */}
+                        <div className="space-y-3 pt-4 border-t border-white/5">
+                          <div className="flex justify-between items-center text-[10px] uppercase font-mono tracking-widest text-text-secondary font-bold">
+                            <span>Batter</span>
+                            <div className="flex gap-8 pr-2">
+                              <span className="w-6 text-right">R</span>
+                              <span className="w-6 text-right">B</span>
+                              <span className="w-6 text-right">4s</span>
+                              <span className="w-6 text-right">6s</span>
+                            </div>
+                          </div>
+                          <div className="space-y-3">
                             {batters.length === 0 ? (
                               <p className="text-xs text-text-secondary italic">No batter statistics recorded.</p>
                             ) : (
                               batters.map((b) => {
                                 const isActive = b.id === innings.currentBatter1Id || b.id === innings.currentBatter2Id;
-                                const sr = b.ballsFaced > 0 ? ((b.runs / b.ballsFaced) * 100).toFixed(1) : "0.0";
                                 return (
-                                  <div
-                                    key={b.id}
-                                    className={`flex justify-between items-center px-4 py-2.5 rounded-xl text-xs border transition-colors ${
-                                      isActive
-                                        ? "bg-gold/10 border-gold/30 text-white font-bold animate-[pulse_6s_infinite]"
-                                        : "bg-white/5 border-white/5 text-text-secondary"
-                                    }`}
-                                  >
+                                  <div key={b.id} className="flex justify-between items-center py-2.5 border-b border-white/5 last:border-0 hover:bg-white/[0.01] px-2 rounded-xl transition-colors">
                                     <div>
-                                      <div className="flex items-center gap-1.5">
-                                        {isActive && <span className="h-1.5 w-1.5 rounded-full bg-gold animate-ping" />}
-                                        <span className={isActive ? "text-white" : "text-text-secondary"}>{b.name}</span>
-                                      </div>
-                                      <span className="text-[10px] text-text-secondary/70 font-mono">
-                                        SR: {sr} • 4s: {b.fours} • 6s: {b.sixes}
+                                      <span className="font-bold text-white text-xs block">
+                                        {b.name} {isActive && <span className="text-gold font-bold ml-1 font-mono animate-pulse">*</span>}
+                                      </span>
+                                      <span className={`text-[10px] uppercase font-mono ${b.isOut ? "text-text-secondary" : "text-green font-semibold"}`}>
+                                        {b.isOut ? (b.dismissalType?.replace("_", " ") || "Out") : "not out"}
                                       </span>
                                     </div>
-                                    <span className="font-mono text-white text-sm font-semibold">
-                                      {b.runs} <span className="text-[10px] text-text-secondary">({b.ballsFaced})</span>
-                                    </span>
+                                    <div className="flex gap-8 font-mono text-xs pr-2">
+                                      <span className="w-6 text-right font-bold text-white text-sm">{b.runs}</span>
+                                      <span className="w-6 text-right text-text-secondary">{b.ballsFaced}</span>
+                                      <span className="w-6 text-right text-text-secondary">{b.fours}</span>
+                                      <span className="w-6 text-right text-text-secondary">{b.sixes}</span>
+                                    </div>
                                   </div>
                                 );
                               })
@@ -872,44 +912,31 @@ export default function WatchPage() {
                           </div>
                         </div>
 
-                        {/* Bowlers details */}
-                        <div className="glass p-6 rounded-[22px] border border-white/5 space-y-4 lg:col-span-1">
-                          <h3 className="font-space font-bold text-sm text-blue uppercase tracking-wider flex items-center gap-2 border-b border-white/5 pb-2">
-                            <span>Active & Previous Bowlers</span>
-                          </h3>
-                          <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                        {/* BOWLER */}
+                        <div className="space-y-3 pt-4 border-t border-white/5">
+                          <div className="flex justify-between items-center text-[10px] uppercase font-mono tracking-widest text-text-secondary font-bold">
+                            <span>Bowler</span>
+                            <div className="flex gap-8 pr-2">
+                              <span className="w-6 text-right">O</span>
+                              <span className="w-6 text-right">R</span>
+                              <span className="w-6 text-right">W</span>
+                            </div>
+                          </div>
+                          <div className="space-y-3">
                             {bowlers.length === 0 ? (
                               <p className="text-xs text-text-secondary italic">No bowler statistics recorded.</p>
                             ) : (
                               bowlers.map((bo) => {
                                 const isActive = bo.id === innings.currentBowlerId;
-                                const econ = bo.ballsBowled > 0 ? ((bo.runsConceded / bo.ballsBowled) * 6).toFixed(2) : "0.00";
-                                const widesCount = innings.balls.filter(b => b.bowlerId === bo.id && b.extraType === "wide").length;
-                                const noballsCount = innings.balls.filter(b => b.bowlerId === bo.id && b.extraType === "noball").length;
-
                                 return (
-                                  <div
-                                    key={bo.id}
-                                    className={`flex justify-between items-center px-4 py-2.5 rounded-xl text-xs border transition-colors ${
-                                      isActive
-                                        ? "bg-blue/10 border-blue/30 text-white font-bold animate-[pulse_6s_infinite]"
-                                        : "bg-white/5 border-white/5 text-text-secondary"
-                                    }`}
-                                  >
-                                    <div>
-                                      <div className="flex items-center gap-1.5">
-                                        {isActive && <span className="h-1.5 w-1.5 rounded-full bg-blue animate-ping" />}
-                                        <span className={isActive ? "text-white" : "text-text-secondary"}>{bo.name}</span>
-                                      </div>
-                                      <span className="text-[10px] text-text-secondary/70 font-mono">
-                                        Overs: {ballsToOvers(bo.ballsBowled)} • Econ: {econ}
-                                      </span>
-                                      <span className="text-[9px] text-text-secondary/60 block font-mono">
-                                        Wides: {widesCount} • No-Balls: {noballsCount}
-                                      </span>
-                                    </div>
-                                    <div className="text-right font-mono">
-                                      <span className="text-white text-sm font-semibold">{bo.wickets} - {bo.runsConceded}</span>
+                                  <div key={bo.id} className="flex justify-between items-center py-2.5 border-b border-white/5 last:border-0 hover:bg-white/[0.01] px-2 rounded-xl transition-colors">
+                                    <span className="font-bold text-white text-xs">
+                                      {bo.name} {isActive && <span className="text-blue font-bold ml-1 font-mono animate-pulse">*</span>}
+                                    </span>
+                                    <div className="flex gap-8 font-mono text-xs pr-2">
+                                      <span className="w-6 text-right text-text-secondary">{ballsToOvers(bo.ballsBowled)}</span>
+                                      <span className="w-6 text-right font-bold text-white">{bo.runsConceded}</span>
+                                      <span className="w-6 text-right font-bold text-white">{bo.wickets}</span>
                                     </div>
                                   </div>
                                 );
