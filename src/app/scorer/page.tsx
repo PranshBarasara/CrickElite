@@ -37,6 +37,7 @@ export default function ScorerPage() {
   // Custom Runs adjust
   const [customRunsValue, setCustomRunsValue] = useState("");
   const [customRunsComment, setCustomRunsComment] = useState("Penalty Runs");
+  const [isCustomRunsNegative, setIsCustomRunsNegative] = useState(false);
 
   // Batter select target
   const [batterTarget, setBatterTarget] = useState<"batter1" | "batter2">("batter1");
@@ -601,8 +602,14 @@ export default function ScorerPage() {
   // Custom penalty runs adjust submit
   const handleCustomRunsSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const parsedRuns = parseInt(customRunsValue);
+    let parsedRuns = parseInt(customRunsValue);
     if (isNaN(parsedRuns) || !match) return;
+
+    if (isCustomRunsNegative) {
+      parsedRuns = -Math.abs(parsedRuns);
+    } else {
+      parsedRuns = Math.abs(parsedRuns);
+    }
 
     playClickSound(500, "sine");
     setHistory((prev) => [...prev, JSON.parse(JSON.stringify(match))]);
@@ -639,6 +646,7 @@ export default function ScorerPage() {
     saveMatch(nextMatch);
     
     setCustomRunsValue("");
+    setIsCustomRunsNegative(false);
     setShowCustomRunsModal(false);
   };
 
@@ -737,7 +745,8 @@ export default function ScorerPage() {
   };
 
   const getRecentBalls = () => {
-    return currentInnings.balls.slice(-6);
+    const currentOverNum = Math.floor(currentInnings.ballsBowled / 6);
+    return currentInnings.balls.filter(b => b.overNumber === currentOverNum);
   };
 
   const currentStriker = currentInnings.battingStats[currentInnings.currentBatter1Id] || 
@@ -909,15 +918,24 @@ export default function ScorerPage() {
 
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase font-mono text-text-secondary">Current Over:</span>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 {getRecentBalls().length === 0 ? (
                   <span className="text-xs text-text-secondary">Waiting for first delivery...</span>
                 ) : (
                   getRecentBalls().map((ball) => {
+                    const isPenalty = ball.ballId.startsWith("penalty-");
                     let badge = "bg-white/5 text-white";
-                    if (ball.runsBatter === 6) badge = "bg-gold/20 text-gold border border-gold/30";
-                    else if (ball.runsBatter === 4) badge = "bg-blue/20 text-blue border border-blue/30";
-                    else if (ball.wicketType) badge = "bg-red-500/20 text-red-400 border border-red-500/30";
+                    if (isPenalty) {
+                      badge = ball.runsExtras >= 0 
+                        ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 font-extrabold" 
+                        : "bg-purple-500/20 text-purple-400 border border-purple-500/30 font-extrabold animate-pulse";
+                    } else if (ball.runsBatter === 6) {
+                      badge = "bg-gold/20 text-gold border border-gold/30";
+                    } else if (ball.runsBatter === 4) {
+                      badge = "bg-blue/20 text-blue border border-blue/30";
+                    } else if (ball.wicketType) {
+                      badge = "bg-red-500/20 text-red-400 border border-red-500/30";
+                    }
 
                     return (
                       <span
@@ -925,7 +943,12 @@ export default function ScorerPage() {
                         className={`h-7 w-7 rounded-lg flex items-center justify-center text-[10px] font-mono font-bold ${badge}`}
                         title={ball.commentary}
                       >
-                        {ball.wicketType ? "W" : ball.runsBatter + (ball.extraType ? "e" : "")}
+                        {ball.wicketType 
+                          ? "W" 
+                          : isPenalty 
+                            ? `${ball.runsExtras >= 0 ? "+" : ""}${ball.runsExtras}`
+                            : ball.runsBatter + (ball.extraType ? "e" : "")
+                        }
                       </span>
                     );
                   })
@@ -1353,16 +1376,38 @@ export default function ScorerPage() {
               <form onSubmit={handleCustomRunsSubmit} className="space-y-4">
                 <div>
                   <label className="block text-[10px] uppercase font-mono tracking-wider text-text-secondary mb-2">
-                    Runs to Adjust (Use negative values to deduct)
+                    Runs to Adjust
                   </label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="e.g. 5 or -5"
-                    value={customRunsValue}
-                    onChange={(e) => setCustomRunsValue(e.target.value)}
-                    className="w-full bg-secondary border border-white/10 rounded-xl px-3 py-2 text-xs focus:border-gold/50 outline-none text-white"
-                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomRunsNegative((prev) => !prev)}
+                      className={`px-3 py-2 rounded-xl text-xs font-mono font-bold transition-all border ${
+                        isCustomRunsNegative
+                          ? "bg-red-500/20 text-red-400 border-red-500/30"
+                          : "bg-green-500/20 text-green-400 border-green-500/30"
+                      }`}
+                      title="Click to toggle Add (+) vs Deduct (-)"
+                    >
+                      {isCustomRunsNegative ? "Deduct (-)" : "Add (+)"}
+                    </button>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      required
+                      placeholder="e.g. 5"
+                      value={customRunsValue}
+                      onChange={(e) => {
+                        let val = e.target.value;
+                        val = val.replace(/[.,\-]/g, "");
+                        if (/^\d*$/.test(val)) {
+                          setCustomRunsValue(val);
+                        }
+                      }}
+                      className="flex-1 bg-secondary border border-white/10 rounded-xl px-3 py-2 text-xs focus:border-gold/50 outline-none text-white text-center font-bold font-mono"
+                    />
+                  </div>
                 </div>
 
                 <div>

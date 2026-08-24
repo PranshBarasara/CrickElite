@@ -631,6 +631,52 @@ export default function WatchPage() {
                           </div>
                         )}
                       </div>
+
+                      {/* Current Over balls bar */}
+                      <div className="md:col-span-2 border-t border-white/5 pt-4 mt-2 flex items-center gap-3">
+                        <span className="text-[9px] uppercase font-mono text-text-secondary tracking-wider">
+                          Current Over:
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(() => {
+                            const currentOverNum = Math.floor(innings.ballsBowled / 6);
+                            const overBalls = innings.balls.filter(b => b.overNumber === currentOverNum);
+                            if (overBalls.length === 0) {
+                              return <span className="text-[10px] text-text-secondary italic">Waiting for first delivery...</span>;
+                            }
+                            return overBalls.map((ball) => {
+                              const isPenalty = ball.ballId.startsWith("penalty-");
+                              let badge = "bg-white/5 text-white";
+                              if (isPenalty) {
+                                badge = ball.runsExtras >= 0 
+                                  ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" 
+                                  : "bg-purple-500/20 text-purple-400 border border-purple-500/30 animate-pulse";
+                              } else if (ball.runsBatter === 6) {
+                                badge = "bg-gold/20 text-gold border border-gold/30";
+                              } else if (ball.runsBatter === 4) {
+                                badge = "bg-blue/20 text-blue border border-blue/30";
+                              } else if (ball.wicketType) {
+                                badge = "bg-red-500/20 text-red-400 border border-red-500/30";
+                              }
+
+                              return (
+                                <span
+                                  key={ball.ballId}
+                                  className={`h-6 w-6 rounded-md flex items-center justify-center text-[9px] font-mono font-bold ${badge}`}
+                                  title={ball.commentary}
+                                >
+                                  {ball.wicketType 
+                                    ? "W" 
+                                    : isPenalty 
+                                      ? `${ball.runsExtras >= 0 ? "+" : ""}${ball.runsExtras}`
+                                      : ball.runsBatter + (ball.extraType ? "e" : "")
+                                  }
+                                </span>
+                              );
+                            });
+                          })()}
+                        </div>
+                      </div>
                     </div>
                   );
                 })()}
@@ -689,7 +735,7 @@ export default function WatchPage() {
             {/* Tab Headers */}
             <div className="flex gap-2 border-b border-white/5 pb-3">
               {[
-                { id: "wagon", label: "Live Wagon Wheel" },
+                { id: "wagon", label: "Live Performance" },
                 { id: "charts", label: "Manhattan & Run Worm" },
                 { id: "commentary", label: "Ball-By-Ball Timeline" },
                 { id: "teams", label: "Squad Details" }
@@ -710,40 +756,170 @@ export default function WatchPage() {
 
             {/* Tab Contents */}
             <div className="py-6">
-              {/* 1. Wagon Wheel */}
+               {/* 1. Live Stats Tab (Scorecard Stats) */}
               {activeTab === "wagon" && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="flex flex-col md:flex-row items-center justify-center gap-12 bg-[#101010] p-8 rounded-[22px] border border-white/5"
+                  className="space-y-8"
                 >
-                  <div className="flex flex-col items-center">
-                    <canvas ref={wagonCanvasRef} className="w-[300px] h-[300px] rounded-full" />
-                    <span className="text-[10px] uppercase font-mono tracking-widest text-text-secondary mt-4">
-                      Interactive Top-Down Wagon Wheel
-                    </span>
-                  </div>
+                  {(() => {
+                    const innings = match.currentInningsNumber === 1 ? match.firstInnings : match.secondInnings;
+                    if (!innings) return <p className="text-center text-xs text-text-secondary">No live stats available.</p>;
 
-                  <div className="space-y-4 max-w-sm">
-                    <h3 className="font-space font-bold text-lg text-white">Shots Visualizer</h3>
-                    <p className="text-xs text-text-secondary leading-relaxed font-light">
-                      The wagon wheel maps every scoring shot's trajectory. Lines are color-coded to identify scoring trends:
-                    </p>
-                    <div className="space-y-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full bg-[#D4AF37]" />
-                        <span>Gold: Sixes (Maximum Hits)</span>
+                    const batters = Object.values(innings.battingStats);
+                    const bowlers = Object.values(innings.bowlingStats);
+
+                    // Group runs per completed/active over
+                    const runsPerOver: Array<{ over: number; runs: number; wickets: number; balls: BallRecord[] }> = [];
+                    const overGroups: Record<number, BallRecord[]> = {};
+                    innings.balls.forEach((b) => {
+                      if (!overGroups[b.overNumber]) {
+                        overGroups[b.overNumber] = [];
+                      }
+                      overGroups[b.overNumber].push(b);
+                    });
+
+                    Object.keys(overGroups).forEach((oKey) => {
+                      const overNum = parseInt(oKey);
+                      const balls = overGroups[overNum];
+                      let overRuns = 0;
+                      let overWickets = 0;
+                      balls.forEach((b) => {
+                        overRuns += b.runsBatter + b.runsExtras;
+                        if (b.wicketType) {
+                          overWickets++;
+                        }
+                      });
+                      runsPerOver.push({
+                        over: overNum + 1,
+                        runs: overRuns,
+                        wickets: overWickets,
+                        balls
+                      });
+                    });
+
+                    return (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Over-by-Over Runs List */}
+                        <div className="glass p-6 rounded-[22px] border border-white/5 space-y-4 lg:col-span-1">
+                          <h3 className="font-space font-bold text-sm text-white uppercase tracking-wider flex items-center gap-2 border-b border-white/5 pb-2">
+                            <span>Runs According to Over</span>
+                          </h3>
+                          <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                            {runsPerOver.length === 0 ? (
+                              <p className="text-xs text-text-secondary italic">No overs bowled yet.</p>
+                            ) : (
+                              runsPerOver.map((o) => (
+                                <div key={o.over} className="flex justify-between items-center bg-white/5 border border-white/5 px-4 py-2.5 rounded-xl text-xs font-mono">
+                                  <div>
+                                    <span className="text-text-secondary font-bold">Over {o.over}</span>
+                                    <span className="text-[10px] text-text-secondary/70 ml-2 block sm:inline">
+                                      ({o.balls.length} deliveries)
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-white font-bold">{o.runs} runs</span>
+                                    {o.wickets > 0 && (
+                                      <span className="bg-red-500/20 text-red-400 font-bold px-1.5 py-0.5 rounded text-[10px]">
+                                        {o.wickets} Wkt
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Batters details */}
+                        <div className="glass p-6 rounded-[22px] border border-white/5 space-y-4 lg:col-span-1">
+                          <h3 className="font-space font-bold text-sm text-gold uppercase tracking-wider flex items-center gap-2 border-b border-white/5 pb-2">
+                            <span>Active & Previous Batters</span>
+                          </h3>
+                          <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                            {batters.length === 0 ? (
+                              <p className="text-xs text-text-secondary italic">No batter statistics recorded.</p>
+                            ) : (
+                              batters.map((b) => {
+                                const isActive = b.id === innings.currentBatter1Id || b.id === innings.currentBatter2Id;
+                                const sr = b.ballsFaced > 0 ? ((b.runs / b.ballsFaced) * 100).toFixed(1) : "0.0";
+                                return (
+                                  <div
+                                    key={b.id}
+                                    className={`flex justify-between items-center px-4 py-2.5 rounded-xl text-xs border transition-colors ${
+                                      isActive
+                                        ? "bg-gold/10 border-gold/30 text-white font-bold animate-[pulse_6s_infinite]"
+                                        : "bg-white/5 border-white/5 text-text-secondary"
+                                    }`}
+                                  >
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        {isActive && <span className="h-1.5 w-1.5 rounded-full bg-gold animate-ping" />}
+                                        <span className={isActive ? "text-white" : "text-text-secondary"}>{b.name}</span>
+                                      </div>
+                                      <span className="text-[10px] text-text-secondary/70 font-mono">
+                                        SR: {sr} • 4s: {b.fours} • 6s: {b.sixes}
+                                      </span>
+                                    </div>
+                                    <span className="font-mono text-white text-sm font-semibold">
+                                      {b.runs} <span className="text-[10px] text-text-secondary">({b.ballsFaced})</span>
+                                    </span>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Bowlers details */}
+                        <div className="glass p-6 rounded-[22px] border border-white/5 space-y-4 lg:col-span-1">
+                          <h3 className="font-space font-bold text-sm text-blue uppercase tracking-wider flex items-center gap-2 border-b border-white/5 pb-2">
+                            <span>Active & Previous Bowlers</span>
+                          </h3>
+                          <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+                            {bowlers.length === 0 ? (
+                              <p className="text-xs text-text-secondary italic">No bowler statistics recorded.</p>
+                            ) : (
+                              bowlers.map((bo) => {
+                                const isActive = bo.id === innings.currentBowlerId;
+                                const econ = bo.ballsBowled > 0 ? ((bo.runsConceded / bo.ballsBowled) * 6).toFixed(2) : "0.00";
+                                const widesCount = innings.balls.filter(b => b.bowlerId === bo.id && b.extraType === "wide").length;
+                                const noballsCount = innings.balls.filter(b => b.bowlerId === bo.id && b.extraType === "noball").length;
+
+                                return (
+                                  <div
+                                    key={bo.id}
+                                    className={`flex justify-between items-center px-4 py-2.5 rounded-xl text-xs border transition-colors ${
+                                      isActive
+                                        ? "bg-blue/10 border-blue/30 text-white font-bold animate-[pulse_6s_infinite]"
+                                        : "bg-white/5 border-white/5 text-text-secondary"
+                                    }`}
+                                  >
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        {isActive && <span className="h-1.5 w-1.5 rounded-full bg-blue animate-ping" />}
+                                        <span className={isActive ? "text-white" : "text-text-secondary"}>{bo.name}</span>
+                                      </div>
+                                      <span className="text-[10px] text-text-secondary/70 font-mono">
+                                        Overs: {ballsToOvers(bo.ballsBowled)} • Econ: {econ}
+                                      </span>
+                                      <span className="text-[9px] text-text-secondary/60 block font-mono">
+                                        Wides: {widesCount} • No-Balls: {noballsCount}
+                                      </span>
+                                    </div>
+                                    <div className="text-right font-mono">
+                                      <span className="text-white text-sm font-semibold">{bo.wickets} - {bo.runsConceded}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full bg-[#00C8FF]" />
-                        <span>Blue: Fours (Boundaries)</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full bg-[#00FFB2]" />
-                        <span>Green: Singles & Doubles</span>
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </motion.div>
               )}
 
@@ -867,14 +1043,7 @@ export default function WatchPage() {
                     const allTeams = getTeams();
                     if (!match) return [];
 
-                    const tournaments = getTournaments();
-                    const activeTournament = tournaments.find((t) =>
-                      t.fixtures.some((f) => f.matchId === match.matchId)
-                    );
-
-                    const filteredTeams = activeTournament
-                      ? allTeams.filter((t) => activeTournament.teams.includes(t.id))
-                      : allTeams.filter((t) => t.name === match.team1Name || t.name === match.team2Name);
+                    const filteredTeams = allTeams.filter((t) => t.name === match.team1Name || t.name === match.team2Name);
 
                     return filteredTeams.map((team: MockTeam) => (
                       <div key={team.id} className="glass p-6 rounded-[22px] border border-white/5">

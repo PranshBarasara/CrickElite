@@ -7,7 +7,7 @@ import { Radio, Calendar, History, ArrowRight, Play, Trophy, Users, Shield, Plus
 import StadiumBackground from "@/components/background/StadiumBackground";
 import Navigation from "@/components/Navigation";
 import Loader from "@/components/loader/Loader";
-import { getMatches, getTournaments, deleteMatch, MockTournament } from "@/lib/mockData";
+import { getMatches, getTournaments, deleteMatch, MockTournament, getTeams } from "@/lib/mockData";
 import { MatchState, ballsToOvers } from "@/lib/scorerEngine";
 
 export default function HomePage() {
@@ -18,6 +18,8 @@ export default function HomePage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [selectedDetailMatch, setSelectedDetailMatch] = useState<MatchState | null>(null);
   const [detailTab, setDetailTab] = useState<"innings1" | "innings2">("innings1");
+  const [showSquadsModal, setShowSquadsModal] = useState(false);
+  const [selectedSquadTeamId, setSelectedSquadTeamId] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedDetailMatch) {
@@ -191,6 +193,33 @@ export default function HomePage() {
             </div>
           )}
         </div>
+
+        {/* Selected Tournament Metadata & View Squads Button */}
+        {selectedTournament && (
+          <div className="w-full max-w-7xl mt-8 flex flex-col sm:flex-row justify-between items-center bg-white/[0.02] border border-white/5 p-5 rounded-2xl gap-4">
+            <div>
+              <span className="text-[10px] uppercase font-mono tracking-widest text-gold block mb-1">
+                Active Tournament Dashboard
+              </span>
+              <h2 className="font-space font-extrabold text-xl text-white">
+                {selectedTournament.name}
+              </h2>
+            </div>
+            <button
+              onClick={() => {
+                const tournamentTeams = getTeams().filter(t => selectedTournament.teams.includes(t.id));
+                if (tournamentTeams.length > 0) {
+                  setSelectedSquadTeamId(tournamentTeams[0].id);
+                }
+                setShowSquadsModal(true);
+              }}
+              className="bg-white/5 hover:bg-white/10 text-white border border-white/10 hover:border-gold/20 px-6 py-3 rounded-full text-xs font-bold font-space uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-lg active:scale-95"
+            >
+              <Users className="h-4.5 w-4.5 text-gold" />
+              View Tournament Squads
+            </button>
+          </div>
+        )}
 
         {/* MATCHES SECTION GRID */}
         {selectedTournament && (
@@ -579,6 +608,115 @@ export default function HomePage() {
                               )}
                             </tbody>
                           </table>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* TOURNAMENT SQUADS MODAL */}
+        <AnimatePresence>
+          {showSquadsModal && selectedTournament && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-[#0B0C10] border border-white/10 shadow-2xl relative max-w-4xl w-full p-6 md:p-8 rounded-[28px] overflow-hidden my-8"
+              >
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSquadsModal(false);
+                    setSelectedSquadTeamId(null);
+                  }}
+                  className="absolute top-4 right-4 p-1.5 text-text-secondary hover:text-white rounded-full hover:bg-white/5 transition-all cursor-pointer z-10"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+
+                {/* Header */}
+                <div className="text-center mb-6">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gold/10 border border-gold/20 text-gold mb-3">
+                    <Users className="h-5 w-5" />
+                  </span>
+                  <h3 className="font-space text-2xl font-bold text-white tracking-tight">
+                    {selectedTournament.name} Squads
+                  </h3>
+                  <p className="text-[10px] text-text-secondary mt-1.5 uppercase tracking-wider font-mono">
+                    Browse registered team rosters and player statistics
+                  </p>
+                </div>
+
+                {/* Team Selector Tabs */}
+                {(() => {
+                  const tournamentTeams = getTeams().filter(t => selectedTournament.teams.includes(t.id));
+                  if (tournamentTeams.length === 0) {
+                    return <p className="text-center text-xs text-text-secondary italic">No teams registered in this tournament yet.</p>;
+                  }
+
+                  const activeTeam = tournamentTeams.find(t => t.id === selectedSquadTeamId) || tournamentTeams[0];
+
+                  return (
+                    <div className="space-y-6">
+                      {/* Tabs */}
+                      <div className="flex gap-2 border-b border-white/5 pb-3 overflow-x-auto">
+                        {tournamentTeams.map((team) => (
+                          <button
+                            key={team.id}
+                            onClick={() => setSelectedSquadTeamId(team.id)}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-bold font-space uppercase transition-all whitespace-nowrap cursor-pointer ${
+                              selectedSquadTeamId === team.id
+                                ? "bg-gold text-black shadow"
+                                : "text-text-secondary hover:text-white hover:bg-white/5"
+                            }`}
+                          >
+                            <span className="mr-1.5">{team.logo}</span>
+                            {team.name}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Team Details & Roster */}
+                      <div className="space-y-6 max-h-[50vh] overflow-y-auto pr-2">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white/5 border border-white/5 p-4 rounded-2xl gap-2 font-mono text-xs">
+                          <div>
+                            <span className="text-text-secondary mr-1.5">Coach:</span>
+                            <span className="text-white font-bold">{activeTeam.coach}</span>
+                          </div>
+                          <div>
+                            <span className="text-text-secondary mr-1.5">Captain:</span>
+                            <span className="text-white font-bold text-gold">{activeTeam.captain}</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <h4 className="text-xs uppercase font-mono tracking-wider text-text-secondary font-bold">Roster Ranks</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {activeTeam.players.map((p) => {
+                              const isCaptain = p.name === activeTeam.captain;
+                              return (
+                                <div key={p.id} className="flex justify-between items-center bg-white/[0.02] px-4 py-3 rounded-xl border border-white/5">
+                                  <div>
+                                    <span className="text-xs font-semibold text-white">
+                                      {p.name} {isCaptain && <span className="text-gold text-[9px] font-bold ml-1 font-mono">(C)</span>}
+                                    </span>
+                                    <span className="text-[10px] text-text-secondary/70 block font-mono">
+                                      {p.battingStyle}
+                                    </span>
+                                  </div>
+                                  <span className="text-[9px] text-text-secondary bg-white/5 px-2 py-0.5 rounded font-mono uppercase tracking-wider">
+                                    {p.role}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     </div>
