@@ -153,6 +153,12 @@ export function saveMatch(match: MatchState) {
   window.dispatchEvent(new Event("storage")); // Trigger cross-tab sync
 }
 
+export function isSuper6Tournament(t: { name?: string } | null | undefined): boolean {
+  if (!t || !t.name) return false;
+  const lower = t.name.trim().toLowerCase();
+  return lower === "super 6 t20 championship" || lower.includes("super 6");
+}
+
 export function getTournaments(): MockTournament[] {
   if (typeof window === "undefined") return [];
   initSupabaseSync();
@@ -169,13 +175,58 @@ export function getTournaments(): MockTournament[] {
       }
     });
   }
+
+  // Purge non-Super 6 tournaments from localStorage
+  ["CrickElite", "DDUGroundCricket"].forEach(user => {
+    const key = `${user}_tournaments`;
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      try {
+        const arr: MockTournament[] = JSON.parse(stored);
+        const filtered = arr.filter(t => isSuper6Tournament(t));
+        if (filtered.length !== arr.length) {
+          localStorage.setItem(key, JSON.stringify(filtered));
+        }
+      } catch (e) {}
+    }
+  });
+
   const uniqueMap = new Map<string, MockTournament>();
   tournamentList.forEach(t => {
-    if (t && t.id) {
+    if (t && t.id && isSuper6Tournament(t)) {
       uniqueMap.set(t.id, t);
     }
   });
-  return Array.from(uniqueMap.values());
+
+  const filteredTournaments = Array.from(uniqueMap.values());
+  if (filteredTournaments.length > 0) {
+    return filteredTournaments;
+  }
+
+  // Fallback default: Super 6 T20 Championship
+  const defaultSuper6: MockTournament = {
+    id: "tourn-super-6",
+    name: "Super 6 T20 Championship",
+    organizer: currentUser || "CrickElite",
+    location: "Cape Town, South Africa",
+    ground: "Newlands Stadium",
+    overs: 20,
+    teams: [],
+    fixtures: [],
+    code: "SUPER6",
+    passwordHash: "180726"
+  };
+
+  const owner = currentUser || "CrickElite";
+  const storedList = localStorage.getItem(`${owner}_tournaments`);
+  const list: MockTournament[] = storedList ? JSON.parse(storedList) : [];
+  if (!list.some(t => t.id === defaultSuper6.id)) {
+    list.push(defaultSuper6);
+    localStorage.setItem(`${owner}_tournaments`, JSON.stringify(list));
+    syncTournamentToSupabase(defaultSuper6);
+  }
+
+  return [defaultSuper6];
 }
 
 export function saveTournament(tournament: MockTournament) {
@@ -456,6 +507,11 @@ export function initSupabaseSync() {
     if (data && data.length > 0) {
       data.forEach(row => {
         const t = row.data as MockTournament;
+        if (!isSuper6Tournament(t)) {
+          // Delete non-Super 6 tournaments from Supabase
+          client.from("crickelite_tournaments").delete().eq("id", t.id).then(() => {});
+          return;
+        }
         const owner = t.organizer === "DDUGroundCricket" ? "DDUGroundCricket" : "CrickElite";
         
         const stored = localStorage.getItem(`${owner}_tournaments`);
@@ -607,6 +663,9 @@ export function initSupabaseSync() {
           });
         } else {
           const t = payload.new.data as MockTournament;
+          if (!isSuper6Tournament(t)) {
+            return;
+          }
           const owner = t.organizer === "DDUGroundCricket" ? "DDUGroundCricket" : "CrickElite";
           const stored = localStorage.getItem(`${owner}_tournaments`);
           const list: MockTournament[] = stored ? JSON.parse(stored) : [];

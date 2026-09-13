@@ -40,7 +40,10 @@ export default function HomePage() {
     const allTournaments = getTournaments();
     setTournaments(allTournaments);
     if (allTournaments.length > 0) {
-      setSelectedTournamentId((prev) => prev || allTournaments[0].id);
+      setSelectedTournamentId((prev) => {
+        if (prev && allTournaments.some((t) => t.id === prev)) return prev;
+        return allTournaments[0].id;
+      });
     }
     const auth = localStorage.getItem("pranscric_auth_token");
     setIsLoggedIn(auth === "authorized_elite");
